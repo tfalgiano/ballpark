@@ -14,7 +14,7 @@
 
   // ---------- state ----------
   function defaultState() {
-    return { v: 1, seenTutorial: false, pro: false, history: {}, maxStreak: 0, practice: { date: "", used: 0 } };
+    return { v: 1, seenTutorial: false, pro: false, history: {}, archive: {}, maxStreak: 0, practice: { date: "", used: 0 } };
   }
   function loadState() {
     var d = defaultState();
@@ -26,6 +26,7 @@
         for (var k in d) merged[k] = s[k] !== undefined ? s[k] : d[k];
         merged.practice = s.practice && typeof s.practice === "object" ? s.practice : d.practice;
         merged.history = s.history && typeof s.history === "object" ? s.history : d.history;
+        merged.archive = s.archive && typeof s.archive === "object" ? s.archive : d.archive;
         return merged;
       }
       if (s && s.v && s.v !== 1) {
@@ -284,6 +285,8 @@
       }
       screen.appendChild(ruler);
 
+      if (opts.banner) screen.appendChild(el("div", "challenge-banner", opts.banner));
+
       // fire the loss-aversion trigger at the moment of play, not after
       if (opts.daily && i === 0 && currentStreak() >= 2) {
         screen.appendChild(el("div", "streak-line", "🔥 " + currentStreak() + "-day streak on the line"));
@@ -350,7 +353,11 @@
           '<div class="verdict-line">' + word +
           '<span class="verdict-pts">' + (a.hit ? "+" + a.pts : "+0") + "</span></div>" +
           '<div class="verdict-fact">' + esc(q.reveal) + "</div>" +
-          '<div class="verdict-src">' + esc(q.source) + (q.asOf ? " · as of " + esc(q.asOf) : "") + "</div>");
+          '<div class="verdict-src">' + esc(q.source) + (q.asOf ? " · as of " + esc(q.asOf) : "") +
+          ' · <a class="dispute" href="mailto:tfalgiano@gmail.com?subject=' +
+          encodeURIComponent("Ballpark answer dispute") + "&body=" +
+          encodeURIComponent("Question: " + q.prompt + "\nShown answer: " + q.answer + " " + q.unit +
+            "\nSource: " + q.source + "\n\nMy case: ") + '">dispute</a></div>');
         card.setAttribute("role", "status");
         actions.parentNode.insertBefore(card, actions);
 
@@ -374,6 +381,7 @@
 
   // ---------- daily flow ----------
   var summaryDay = null; // day whose summary is on screen, for midnight rollover
+  var challengeTarget = null; // score to beat when arriving via a ?d=&s= link
 
   function startDaily() {
     var n = dayNumber();
@@ -401,6 +409,100 @@
     });
   }
 
+  // ---------- archive & challenges ----------
+  function startChallenge(dayIdx, targetScore) {
+    if (dayIdx === dayNumber()) {
+      challengeTarget = targetScore;
+      startDaily();
+      return;
+    }
+    playArchive(dayIdx, targetScore);
+  }
+
+  function playArchive(dayIdx, targetScore) {
+    summaryDay = null;
+    var rec = state.archive[dayIdx];
+    if (rec && rec.done) { renderArchiveSummary(dayIdx, targetScore); return; }
+    if (!rec) { rec = { answers: [], done: false }; state.archive[dayIdx] = rec; }
+    document.getElementById("puzzle-no").textContent = "#" + (dayIdx + 1);
+    runSession({
+      qids: puzzleForDay(dayIdx),
+      startIndex: rec.answers.length,
+      answers: rec.answers,
+      banner: targetScore != null
+        ? "⚔️ Challenge: beat " + targetScore + "/500 on this ballpark"
+        : "Archive #" + (dayIdx + 1) + " — doesn't touch your streak",
+      onAnswer: function (idx, a) { rec.answers[idx] = a; saveState(); },
+      onDone: function (answers) {
+        rec.done = true;
+        rec.score = answers.reduce(function (s, a) { return s + a.pts; }, 0);
+        saveState();
+        track("event/finished-archive");
+        renderArchiveSummary(dayIdx, targetScore);
+      }
+    });
+  }
+
+  function renderArchiveSummary(dayIdx, targetScore) {
+    var rec = state.archive[dayIdx];
+    var hits = rec.answers.filter(function (a) { return a.hit; }).length;
+    var screen = el("div", "screen summary");
+    screen.appendChild(el("div", "summary-kicker", "Ballpark #" + (dayIdx + 1) + " · archive"));
+    screen.appendChild(el("div", "summary-score", rec.score + "<span class='of'>/500</span>"));
+    screen.appendChild(el("div", "summary-grid", rec.answers.map(emojiFor).join("")));
+    screen.appendChild(el("div", "summary-label", hits + " of " + rec.answers.length + " trapped"));
+    if (targetScore != null) {
+      screen.appendChild(el("div", "streak-line", rec.score > targetScore
+        ? "⚔️ Challenge won — " + rec.score + " beats their " + targetScore
+        : rec.score === targetScore
+          ? "⚔️ Dead heat at " + rec.score
+          : "⚔️ Challenge stands — their " + targetScore + ", your " + rec.score));
+    }
+    var actions = el("div", "action-row");
+    var shareBtn = el("button", "btn btn-primary", "Challenge a friend");
+    var todayBtn = el("button", "btn", "Play today's ballpark");
+    actions.appendChild(shareBtn); actions.appendChild(todayBtn);
+    screen.appendChild(actions);
+    shareBtn.addEventListener("click", function () {
+      shareResult("Ballpark #" + (dayIdx + 1) + " — " + rec.score + "/500\n" +
+        rec.answers.map(emojiFor).join(""), challengeUrl(dayIdx, rec.score));
+    });
+    todayBtn.addEventListener("click", function () {
+      history.replaceState(null, "", location.pathname);
+      startDaily();
+    });
+    stage.innerHTML = "";
+    stage.appendChild(screen);
+  }
+
+  function challengeUrl(dayIdx, score) {
+    return shareUrl() + "?d=" + (dayIdx + 1) + (score != null ? "&s=" + score : "");
+  }
+
+  function openArchive() {
+    openModal(function (m) {
+      m.appendChild(el("h2", "", "The archive"));
+      m.appendChild(el("div", "modal-sub", "Every past ballpark. Archive plays don't touch your streak."));
+      var grid = el("div", "archive-grid");
+      var today = dayNumber();
+      for (var d = today - 1; d >= 0; d--) {
+        (function (dayIdx) {
+          var played = (state.history[dayIdx] && state.history[dayIdx].done && state.history[dayIdx]) ||
+                       (state.archive[dayIdx] && state.archive[dayIdx].done && state.archive[dayIdx]);
+          var chip = el("button", "archive-chip" + (played ? " played" : ""),
+            "#" + (dayIdx + 1) + (played ? "<span class='chip-score'>" + played.score + "</span>" : ""));
+          chip.addEventListener("click", function () {
+            closeModal();
+            playArchive(dayIdx, null);
+          });
+          grid.appendChild(chip);
+        })(d);
+      }
+      if (today < 1) m.appendChild(el("div", "chart-sub", "Come back tomorrow — the archive starts once there's a yesterday."));
+      m.appendChild(grid);
+    });
+  }
+
   // ---------- summary ----------
   function shareGrid(n) {
     var rec = state.history[n];
@@ -410,8 +512,24 @@
     return "Ballpark #" + (n + 1) + " — " + rec.score + "/500" + (hits === rec.answers.length ? " 🎯" : "") +
       "\n" + grid + (streak > 1 ? "  🔥" + streak : "");
   }
-  function shareText(n) {
-    return shareGrid(n) + "\n[ trap the truth ] " + shareUrl();
+  // one share path for daily and archive: native sheet on touch, clipboard on desktop
+  function shareResult(gridText, url) {
+    var full = gridText + "\nBeat me: " + url;
+    var coarse = window.matchMedia && matchMedia("(pointer: coarse)").matches;
+    function copyFallback() {
+      if (!navigator.clipboard) { toast("Couldn't share — select and copy manually"); return; }
+      navigator.clipboard.writeText(full).then(function () {
+        track("event/share-copy");
+        toast("Copied — go brag");
+      }, function () { toast("Couldn't copy — check clipboard permission"); });
+    }
+    if (coarse && navigator.share) {
+      navigator.share({ title: "Ballpark", text: gridText + "\nBeat me:", url: url })
+        .then(function () { track("event/share-native"); })
+        .catch(copyFallback);
+    } else {
+      copyFallback();
+    }
   }
   function shareUrl() {
     if (location.origin === "null" || location.protocol === "file:" || /claude\.ai$/.test(location.hostname)) {
@@ -458,6 +576,13 @@
     if (streakNow >= 2) {
       screen.appendChild(el("div", "streak-line", "🔥 " + streakNow + "-day streak"));
     }
+    if (challengeTarget != null) {
+      screen.appendChild(el("div", "streak-line", rec.score > challengeTarget
+        ? "⚔️ Challenge won — " + rec.score + " beats their " + challengeTarget
+        : rec.score === challengeTarget
+          ? "⚔️ Dead heat at " + rec.score
+          : "⚔️ Challenge stands — their " + challengeTarget + ", your " + rec.score));
+    }
 
     // recap: the five questions stay reviewable — the learning loop lives here
     var recap = el("div", "recap");
@@ -478,13 +603,19 @@
     screen.appendChild(recap);
 
     var actions = el("div", "action-row");
-    var shareBtn = el("button", "btn btn-primary", "Share result");
+    var shareBtn = el("button", "btn btn-primary", "Challenge a friend");
     var statsBtn = el("button", "btn", "My stats");
     var practiceBtn = el("button", "btn btn-ghost",
       state.pro ? "Practice round" :
       practiceLeft() > 0 ? "Practice round (" + practiceLeft() + " free today)" : "Practice — unlimited with Pro");
-    actions.appendChild(shareBtn); actions.appendChild(statsBtn); actions.appendChild(practiceBtn);
+    var archiveBtn = el("button", "btn btn-ghost",
+      "Play the archive" + (state.pro ? "" : ' <span class="badge-pro">PRO</span>'));
+    actions.appendChild(shareBtn); actions.appendChild(statsBtn);
+    actions.appendChild(practiceBtn); actions.appendChild(archiveBtn);
     screen.appendChild(actions);
+    archiveBtn.addEventListener("click", function () {
+      if (state.pro) openArchive(); else openPro("archive");
+    });
 
     var cd = el("div", "countdown");
     screen.appendChild(cd);
@@ -515,23 +646,7 @@
     summaryDay = n;
 
     shareBtn.addEventListener("click", function () {
-      var text = shareText(n);
-      var coarse = window.matchMedia && matchMedia("(pointer: coarse)").matches;
-      function copyFallback() {
-        if (!navigator.clipboard) { toast("Couldn't share — select and copy manually"); return; }
-        navigator.clipboard.writeText(text).then(function () {
-          track("event/share-copy");
-          toast("Copied — go brag");
-        }, function () { toast("Couldn't copy — check clipboard permission"); });
-      }
-      // native sheet only where it's good (touch devices); desktop lives in chat apps
-      if (coarse && navigator.share) {
-        navigator.share({ title: "Ballpark", text: shareGrid(n), url: shareUrl() })
-          .then(function () { track("event/share-native"); })
-          .catch(copyFallback);
-      } else {
-        copyFallback();
-      }
+      shareResult(shareGrid(n), challengeUrl(n, rec.score));
     });
     statsBtn.addEventListener("click", openStats);
     practiceBtn.addEventListener("click", startPractice);
@@ -789,11 +904,13 @@
     openModal(function (m) {
       m.appendChild(el("h2", "", "Ballpark Pro"));
       m.appendChild(el("div", "modal-sub",
-        ctx === "practice" ? "You've played today's " + FREE_PRACTICE_PER_DAY + " free practice rounds." : "One coffee. Forever sharp."));
+        ctx === "practice" ? "You've played today's " + FREE_PRACTICE_PER_DAY + " free practice rounds." :
+        ctx === "archive" ? "The archive is a Pro perk." : "One coffee. Forever sharp."));
       var card = el("div", "pro-card");
       card.appendChild(el("h3", "", "Everything in free, plus:"));
       var ul = el("ul");
-      ["Unlimited practice rounds", "Category breakdown — find your blind spots", "One-time $14 — support an indie daily game"].forEach(function (li) {
+      ["Unlimited practice rounds", "The full archive — replay every past ballpark",
+       "Category breakdown — find your blind spots", "One-time $14 — support an indie daily game"].forEach(function (li) {
         ul.appendChild(el("li", "", li));
       });
       card.appendChild(ul);
@@ -861,12 +978,28 @@
       if (ev.key === "Enter" || ev.key === " ") startDaily();
     });
 
-    // Stripe's after-checkout redirect lands here with ?code= — unlock on arrival
+    // one beacon per session: surface silent crashes in analytics, no backend needed
+    var errorReported = false;
+    function reportError() {
+      if (errorReported) return;
+      errorReported = true;
+      track("event/js-error");
+    }
+    window.addEventListener("error", reportError);
+    window.addEventListener("unhandledrejection", reportError);
+
+    // URL params: ?code= is Stripe's after-checkout return; ?d=&s= is a challenge link
+    var challengeDayParam = NaN, challengeScoreParam = NaN;
     try {
-      var urlCode = new URLSearchParams(location.search).get("code");
+      var params = new URLSearchParams(location.search);
+      var urlCode = params.get("code");
+      challengeDayParam = parseInt(params.get("d"), 10);
+      challengeScoreParam = parseInt(params.get("s"), 10);
       if (urlCode && validCode(urlCode.trim().toUpperCase())) {
         if (!state.pro) { state.pro = true; saveState(); track("event/pro-unlocked"); }
-        history.replaceState(null, "", location.pathname);
+        params.delete("code");
+        var rest = params.toString();
+        history.replaceState(null, "", location.pathname + (rest ? "?" + rest : ""));
         setTimeout(function () { toast("Pro unlocked — thanks for backing Ballpark ⚡"); }, 600);
       }
     } catch (e) {}
@@ -889,7 +1022,11 @@
     }
 
     refreshStreakBadge();
-    startDaily();
+    if (!isNaN(challengeDayParam) && challengeDayParam >= 1 && challengeDayParam - 1 <= dayNumber()) {
+      startChallenge(challengeDayParam - 1, isNaN(challengeScoreParam) ? null : challengeScoreParam);
+    } else {
+      startDaily();
+    }
     if (!state.seenTutorial) openHelp(true);
 
     if ("serviceWorker" in navigator && location.protocol !== "file:") {

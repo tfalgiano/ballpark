@@ -226,6 +226,33 @@ button { font-family: inherit; cursor: pointer; }
 .recap-nums b { color: var(--ink); }
 .recap-pts { font-family: var(--mono); font-weight: 800; font-size: 0.9rem; }
 
+/* challenge banner on question screens */
+.challenge-banner {
+  background: var(--surface); border: 2px dashed var(--tape-deep);
+  border-radius: 10px; padding: 8px 12px;
+  font-weight: 700; font-size: 0.85rem; text-align: center;
+  margin-bottom: 14px;
+}
+
+/* archive picker */
+.archive-grid {
+  display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px;
+  margin-top: 6px;
+}
+.archive-chip {
+  font-family: var(--mono); font-weight: 700; font-size: 0.9rem;
+  background: var(--surface); color: var(--ink);
+  border: 2px solid var(--faint); border-radius: 10px;
+  padding: 10px 4px;
+  display: flex; flex-direction: column; align-items: center; gap: 2px;
+}
+.archive-chip.played { border-color: var(--tape-deep); }
+.archive-chip:hover { border-color: var(--ink); }
+.chip-score { font-size: 0.7rem; color: var(--graphite); font-weight: 400; }
+
+/* dispute link inside verdict source line */
+.dispute { color: inherit; }
+
 /* quiet inline action */
 .linklike {
   background: none; border: none;
