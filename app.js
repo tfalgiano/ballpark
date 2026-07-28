@@ -396,7 +396,10 @@
       qids: puzzleForDay(n),
       startIndex: rec.answers.length,
       answers: rec.answers,
-      onAnswer: function (idx, a) { rec.answers[idx] = a; saveState(); },
+      onAnswer: function (idx, a) {
+        rec.answers[idx] = a; saveState();
+        if (idx === 0) track("event/started-daily");
+      },
       onDone: function (answers) {
         rec.done = true;
         rec.score = answers.reduce(function (s, a) { return s + a.pts; }, 0);
