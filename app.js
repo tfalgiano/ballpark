@@ -407,6 +407,8 @@
         if (streak > state.maxStreak) state.maxStreak = streak;
         saveState();
         track("event/finished-daily");
+        // privacy-safe D1 signal: a finisher on a streak is, by definition, a returner
+        if (streak >= 2) track("event/returning-player");
         renderSummary(n, true);
       }
     });
