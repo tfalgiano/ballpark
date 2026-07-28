@@ -82,7 +82,8 @@ body {
   min-height: 100dvh;
   display: flex;
   flex-direction: column;
-  padding: 0 16px calc(20px + env(safe-area-inset-bottom));
+  padding: env(safe-area-inset-top) max(16px, env(safe-area-inset-left))
+           calc(20px + env(safe-area-inset-bottom)) max(16px, env(safe-area-inset-right));
 }
 
 button { font-family: inherit; cursor: pointer; }
@@ -149,9 +150,14 @@ button { font-family: inherit; cursor: pointer; }
 }
 .ptick.current { height: 22px; background: var(--tape); }
 .ptick.done-hit { height: 16px; background: var(--hit); }
-.ptick.done-miss { height: 16px; background: var(--miss); }
-.ptick.done-hit::after, .ptick.done-miss::after {
+.ptick.done-miss { height: 16px; background: var(--miss-deep); }
+.ptick.done-miss::after {
+  /* misses get a stripe pattern so hit/miss never rides on color alone */
   content: ""; position: absolute; inset: 0;
+  background: repeating-linear-gradient(45deg,
+    transparent 0, transparent 3px,
+    rgba(255, 255, 255, 0.55) 3px, rgba(255, 255, 255, 0.55) 5px);
+  border-radius: inherit;
 }
 
 /* ---------- question ---------- */
@@ -186,9 +192,53 @@ button { font-family: inherit; cursor: pointer; }
 }
 .readout .r-dash { color: var(--graphite); padding: 0 0.35em; font-weight: 400; }
 .readout .r-unit { font-size: 0.55em; color: var(--graphite); font-weight: 400; margin-left: 0.4em; }
+.readout .r-worth {
+  display: block;
+  font-size: 0.5em; font-weight: 600; color: var(--graphite);
+  margin-top: 4px; letter-spacing: 0.02em;
+}
+.readout .r-worth.tight { color: var(--hit); }
+
+/* streak stakes + celebration */
+.streak-line {
+  font-weight: 700; font-size: 0.9rem;
+  margin-bottom: 14px; text-align: center;
+}
+.pb-ribbon {
+  display: inline-block;
+  background: var(--tape); color: var(--tape-ink);
+  border: 2px solid var(--ink); border-radius: 8px;
+  font-weight: 800; font-size: 0.9rem;
+  padding: 5px 14px; margin: 10px auto 2px;
+}
+
+/* end-of-day recap */
+.recap { margin: 18px 0 4px; text-align: left; display: flex; flex-direction: column; gap: 8px; }
+.recap-row {
+  display: flex; align-items: center; gap: 10px;
+  background: var(--surface); border: 2px solid var(--faint);
+  border-radius: 10px; padding: 9px 12px;
+}
+.recap-emoji { font-size: 1rem; }
+.recap-mid { flex: 1; min-width: 0; }
+.recap-q { font-size: 0.82rem; font-weight: 600; line-height: 1.3; }
+.recap-nums { font-family: var(--mono); font-size: 0.74rem; color: var(--graphite); margin-top: 2px; }
+.recap-nums b { color: var(--ink); }
+.recap-pts { font-family: var(--mono); font-weight: 800; font-size: 0.9rem; }
+
+/* quiet inline action */
+.linklike {
+  background: none; border: none;
+  color: var(--graphite); font-size: 0.85rem;
+  text-decoration: underline; text-underline-offset: 3px;
+  margin-top: 10px; padding: 6px;
+}
+.linklike:hover { color: var(--ink); }
+.pro-note { font-size: 0.78rem; color: var(--graphite); margin-top: 8px; text-align: center; }
 
 /* ---------- the tape slider (signature element) ---------- */
-.tape-wrap { padding: 30px 10px 6px; touch-action: none; }
+.tape-wrap { padding: 30px 10px 6px; }
+.tape { touch-action: pan-y; }
 .tape {
   position: relative;
   height: 54px;
@@ -224,6 +274,7 @@ button { font-family: inherit; cursor: pointer; }
   position: absolute; top: -12px;
   width: 34px; height: 78px;
   margin-left: -17px;
+  touch-action: none;
   background: var(--tape);
   border: 2.5px solid var(--ink);
   border-radius: 8px;
@@ -234,6 +285,10 @@ button { font-family: inherit; cursor: pointer; }
   z-index: 3;
   user-select: none;
   transition: transform 0.12s ease;
+}
+.handle::after {
+  /* invisible hit-area expansion to a ≥44px effective touch target */
+  content: ""; position: absolute; inset: -10px -14px;
 }
 .handle:active, .handle.dragging { transform: scale(1.08); z-index: 4; }
 .handle:focus-visible { outline: 3px solid var(--miss-deep); }
@@ -310,7 +365,7 @@ button { font-family: inherit; cursor: pointer; }
   font-variant-numeric: tabular-nums;
 }
 .verdict-fact { color: var(--graphite); font-size: 0.95rem; line-height: 1.5; }
-.verdict-src { font-family: var(--mono); font-size: 0.7rem; color: var(--graphite); margin-top: 10px; opacity: 0.8; }
+.verdict-src { font-family: var(--mono); font-size: 0.75rem; color: var(--graphite); margin-top: 10px; }
 
 /* ---------- summary ---------- */
 .summary { text-align: center; padding-top: 10px; }
@@ -420,7 +475,7 @@ button { font-family: inherit; cursor: pointer; }
 .hist-bar.today { background: var(--ink); border-color: var(--ink); }
 .hist-x {
   display: flex; gap: 2px;
-  font-family: var(--mono); font-size: 0.62rem; color: var(--graphite); margin-top: 4px;
+  font-family: var(--mono); font-size: 0.7rem; color: var(--graphite); margin-top: 4px;
 }
 .hist-x span { flex: 1; text-align: center; }
 
@@ -439,9 +494,11 @@ button { font-family: inherit; cursor: pointer; }
 }
 .pro-code-row { display: flex; gap: 8px; margin-top: 12px; }
 .pro-code-row input {
-  flex: 1; font-family: var(--mono); font-size: 0.95rem;
+  flex: 1; font-family: var(--mono);
+  font-size: 16px; /* under 16px triggers iOS Safari auto-zoom on focus */
   padding: 10px 12px; border: 2px solid var(--faint); border-radius: 10px;
   background: var(--paper); color: var(--ink);
+  min-width: 0;
 }
 .badge-pro {
   font-family: var(--mono); font-size: 0.62rem; font-weight: 800;
@@ -473,6 +530,18 @@ button { font-family: inherit; cursor: pointer; }
   0% { transform: translateY(0); opacity: 0; }
   20% { opacity: 1; }
   100% { transform: translateY(-60px); opacity: 0; }
+}
+
+/* perfect-day confetti */
+.confetti { position: fixed; inset: 0; pointer-events: none; z-index: 30; overflow: hidden; }
+.confetti i {
+  position: absolute; top: -14px;
+  width: 9px; height: 14px; border-radius: 2px;
+  animation: confetti-fall 2.1s cubic-bezier(0.3, 0.4, 0.6, 1) forwards;
+}
+@keyframes confetti-fall {
+  0% { transform: translateY(0) rotate(0); opacity: 1; }
+  100% { transform: translateY(105vh) rotate(560deg); opacity: 0.7; }
 }
 
 @media (prefers-reduced-motion: reduce) {
