@@ -1,0 +1,46 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<title>Ballpark — the daily estimation game</title>
+<meta name="description" content="Five questions a day. Don't guess the number — trap it. Narrow range, big points.">
+<meta name="theme-color" content="#FFC933">
+<meta property="og:title" content="Ballpark — the daily estimation game">
+<meta property="og:description" content="Five questions a day. Don't guess the number — trap it.">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" href="icon.svg" type="image/svg+xml">
+<link rel="apple-touch-icon" href="icon-192.png">
+<link rel="stylesheet" href="styles.css">
+</head>
+<body>
+<div id="app" class="app">
+
+  <header class="topbar">
+    <div class="wordmark" id="btn-home" role="button" tabindex="0" aria-label="Ballpark home">
+      <span class="logo-brackets" aria-hidden="true">[<span class="logo-ball"></span>]</span>
+      <span class="wordmark-text">BALLPARK</span>
+      <span class="puzzle-no" id="puzzle-no"></span>
+    </div>
+    <nav class="topbar-actions">
+      <button class="iconbtn" id="btn-streak" aria-label="Your streak"><span id="streak-flame">🔥</span><span class="streak-n" id="streak-n">0</span></button>
+      <button class="iconbtn" id="btn-stats" aria-label="Statistics">
+        <svg width="20" height="20" viewBox="0 0 20 20" fill="none" aria-hidden="true"><rect x="2" y="10" width="4" height="8" rx="1.5" fill="currentColor"/><rect x="8" y="5" width="4" height="13" rx="1.5" fill="currentColor"/><rect x="14" y="2" width="4" height="16" rx="1.5" fill="currentColor"/></svg>
+      </button>
+      <button class="iconbtn" id="btn-help" aria-label="How to play">
+        <svg width="20" height="20" viewBox="0 0 20 20" fill="none" aria-hidden="true"><circle cx="10" cy="10" r="8" stroke="currentColor" stroke-width="2"/><path d="M7.8 7.6c.2-1.1 1.1-1.9 2.3-1.9 1.3 0 2.3.9 2.3 2.1 0 1-.6 1.5-1.4 2-.7.5-1 .8-1 1.6" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" fill="none"/><circle cx="10" cy="14.4" r="1.1" fill="currentColor"/></svg>
+      </button>
+    </nav>
+  </header>
+
+  <main class="stage" id="stage">
+    <!-- Screens injected by app.js -->
+  </main>
+
+  <div class="toast" id="toast" role="status" aria-live="polite"></div>
+</div>
+
+<script src="puzzles.js"></script>
+<script src="app.js"></script>
+</body>
+</html>
