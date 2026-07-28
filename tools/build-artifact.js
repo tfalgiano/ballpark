@@ -45,7 +45,7 @@ ${css}
   <main class="stage" id="stage"></main>
   <div class="toast" id="toast" role="status" aria-live="polite"></div>
 </div>
-<script>window.BALLPARK_PRO_URL = "https://buy.stripe.com/14A28lfeG6511Az6EadZ600";</script>
+<script>window.BALLPARK_PRO_URL = "https://buy.stripe.com/9B66oAeBV3iK6wDdUmbo400";</script>
 <script>
 ${inline(puzzles)}
 </script>
