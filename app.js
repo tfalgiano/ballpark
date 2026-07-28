@@ -101,6 +101,12 @@
     return e;
   }
   function esc(s) { return String(s).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;"); }
+  // cookieless GoatCounter event, no-op when analytics is absent (artifact build)
+  function track(name) {
+    try {
+      if (window.goatcounter && window.goatcounter.count) window.goatcounter.count({ path: name, event: true });
+    } catch (e) {}
+  }
   function toast(msg) {
     var t = document.getElementById("toast");
     t.textContent = msg;
@@ -328,6 +334,7 @@
         var streak = currentStreak();
         if (streak > state.maxStreak) state.maxStreak = streak;
         saveState();
+        track("event/finished-daily");
         renderSummary(n);
       }
     });
@@ -384,6 +391,7 @@
     renderSummary._cd = setInterval(tickCd, 1000);
 
     shareBtn.addEventListener("click", function () {
+      track("event/share");
       var text = shareText(n);
       if (navigator.share) {
         navigator.share({ text: text }).catch(function () {});
@@ -599,6 +607,7 @@
   }
 
   function openPro() {
+    track("event/pro-view");
     openModal(function (m) {
       m.appendChild(el("h2", "", "Ballpark Pro"));
       m.appendChild(el("div", "modal-sub", "One coffee. Forever sharp."));
@@ -616,6 +625,8 @@
       buy.href = window.BALLPARK_PRO_URL || "#";
       if (!window.BALLPARK_PRO_URL) {
         buy.addEventListener("click", function (ev) { ev.preventDefault(); toast("Checkout opens at launch — codes work now"); });
+      } else {
+        buy.addEventListener("click", function () { track("event/pro-checkout-click"); });
       }
       card.appendChild(buy);
       var row = el("div", "pro-code-row");
