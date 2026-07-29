@@ -303,6 +303,12 @@
       var readout = el("div", "readout");
       screen.appendChild(readout);
 
+      // first-ever question: one hint line instead of a blocking tutorial modal
+      if (!state.seenTutorial) {
+        screen.appendChild(el("div", "first-hint",
+          "Drag the brackets — trap the true number inside. Narrower = bigger points."));
+      }
+
       var slider = TapeSlider(q, function (lo, hi, w) {
         // live stake: show what this width is worth, so narrowing has visible tension
         var worth = Math.round(15 + 85 * Math.pow(1 - w, 1.4));
@@ -327,6 +333,7 @@
         var a = scoreAnswer(q, raw.lo, raw.hi);
         a.qid = opts.qids[i]; a.lo = v.lo; a.hi = v.hi;
         answers.push(a);
+        if (!state.seenTutorial) { state.seenTutorial = true; saveState(); }
         if (opts.onAnswer) opts.onAnswer(i, a);
         slider.reveal(q.answer, a.hit);
         if (navigator.vibrate) navigator.vibrate(a.hit ? 15 : [30, 40, 30]);
@@ -1032,7 +1039,6 @@
     } else {
       startDaily();
     }
-    if (!state.seenTutorial) openHelp(true);
 
     if ("serviceWorker" in navigator && location.protocol !== "file:") {
       navigator.serviceWorker.register("sw.js").catch(function () {});

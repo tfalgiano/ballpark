@@ -231,6 +231,15 @@ button { font-family: inherit; cursor: pointer; }
 .recap-nums b { color: var(--ink); }
 .recap-pts { font-family: var(--mono); font-weight: 800; font-size: 0.9rem; }
 
+/* one-line first-play hint (replaces the old tutorial modal) */
+.first-hint {
+  text-align: center;
+  font-size: 0.85rem;
+  color: var(--graphite);
+  margin-top: 2px;
+  animation: screen-in 0.4s ease 0.3s both;
+}
+
 /* challenge banner on question screens */
 .challenge-banner {
   background: var(--surface); border: 2px dashed var(--tape-deep);
@@ -5299,6 +5308,12 @@ window.BALLPARK_DATA = {
       var readout = el("div", "readout");
       screen.appendChild(readout);
 
+      // first-ever question: one hint line instead of a blocking tutorial modal
+      if (!state.seenTutorial) {
+        screen.appendChild(el("div", "first-hint",
+          "Drag the brackets — trap the true number inside. Narrower = bigger points."));
+      }
+
       var slider = TapeSlider(q, function (lo, hi, w) {
         // live stake: show what this width is worth, so narrowing has visible tension
         var worth = Math.round(15 + 85 * Math.pow(1 - w, 1.4));
@@ -5323,6 +5338,7 @@ window.BALLPARK_DATA = {
         var a = scoreAnswer(q, raw.lo, raw.hi);
         a.qid = opts.qids[i]; a.lo = v.lo; a.hi = v.hi;
         answers.push(a);
+        if (!state.seenTutorial) { state.seenTutorial = true; saveState(); }
         if (opts.onAnswer) opts.onAnswer(i, a);
         slider.reveal(q.answer, a.hit);
         if (navigator.vibrate) navigator.vibrate(a.hit ? 15 : [30, 40, 30]);
@@ -6028,7 +6044,6 @@ window.BALLPARK_DATA = {
     } else {
       startDaily();
     }
-    if (!state.seenTutorial) openHelp(true);
 
     if ("serviceWorker" in navigator && location.protocol !== "file:") {
       navigator.serviceWorker.register("sw.js").catch(function () {});

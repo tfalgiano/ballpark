@@ -226,6 +226,15 @@ button { font-family: inherit; cursor: pointer; }
 .recap-nums b { color: var(--ink); }
 .recap-pts { font-family: var(--mono); font-weight: 800; font-size: 0.9rem; }
 
+/* one-line first-play hint (replaces the old tutorial modal) */
+.first-hint {
+  text-align: center;
+  font-size: 0.85rem;
+  color: var(--graphite);
+  margin-top: 2px;
+  animation: screen-in 0.4s ease 0.3s both;
+}
+
 /* challenge banner on question screens */
 .challenge-banner {
   background: var(--surface); border: 2px dashed var(--tape-deep);
