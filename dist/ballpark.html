@@ -5449,11 +5449,27 @@ window.BALLPARK_DATA = {
     return e;
   }
   function esc(s) { return String(s).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;"); }
-  // cookieless GoatCounter event, no-op when analytics is absent (artifact build)
+  // cookieless GoatCounter event. Events fired before the async analytics
+  // script loads (e.g. the boot-time Pro unlock) queue and flush once ready.
+  var pendingEvents = [];
   function track(name) {
     try {
-      if (window.goatcounter && window.goatcounter.count) window.goatcounter.count({ path: name, event: true });
+      if (window.goatcounter && window.goatcounter.count) {
+        window.goatcounter.count({ path: name, event: true });
+      } else {
+        pendingEvents.push(name);
+      }
     } catch (e) {}
+  }
+  if (typeof setInterval === "function") {
+    var flushTimer = setInterval(function () {
+      if (!(window.goatcounter && window.goatcounter.count)) return;
+      while (pendingEvents.length) {
+        try { window.goatcounter.count({ path: pendingEvents.shift(), event: true }); } catch (e) {}
+      }
+      clearInterval(flushTimer);
+    }, 500);
+    setTimeout(function () { clearInterval(flushTimer); }, 15000);
   }
   function toast(msg) {
     var t = document.getElementById("toast");
@@ -5748,6 +5764,9 @@ window.BALLPARK_DATA = {
         track("event/finished-daily");
         // privacy-safe D1 signal: a finisher on a streak is, by definition, a returner
         if (streak >= 2) track("event/returning-player");
+        // a finished game is worth protecting: ask the browser not to evict
+        // this site's storage (guards streaks and the Pro flag)
+        if (navigator.storage && navigator.storage.persist) navigator.storage.persist().catch(function () {});
         renderSummary(n, true);
       }
     });
