@@ -1,0 +1,14 @@
+Copyright (c) 2026 Tyler Falgiano. All rights reserved.
+
+The source code of Ballpark is made publicly visible for transparency and
+deployment purposes only. No permission is granted to copy, modify, host,
+redistribute, or create derivative works from this code.
+
+The question database (puzzles.js and data/), including question wording,
+curated answer values, slider bound design, source notes, and reveal texts,
+is an original curated compilation and is likewise protected. Reproduction
+of the question set in any form is prohibited.
+
+"Ballpark" name and the [ • ] mark are used to identify this game.
+
+For licensing inquiries: tfalgiano@gmail.com

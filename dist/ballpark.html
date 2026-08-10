@@ -6357,12 +6357,19 @@ window.BALLPARK_DATA = {
       if (ev.key === "Enter" || ev.key === " ") startDaily();
     });
 
-    // one beacon per session: surface silent crashes in analytics, no backend needed
+    // one beacon per session: surface silent crashes in analytics, no backend
+    // needed. A short sanitized slug of the message makes errors diagnosable.
     var errorReported = false;
-    function reportError() {
+    function reportError(ev) {
       if (errorReported) return;
       errorReported = true;
-      track("event/js-error");
+      var msg = "";
+      try {
+        msg = String((ev && (ev.message || (ev.reason && ev.reason.message) || ev.reason)) || "unknown");
+      } catch (e) { msg = "unknown"; }
+      var slug = msg.toLowerCase().replace(/https?:\/\/\S+/g, "").replace(/[^a-z0-9 ]+/g, " ")
+        .trim().replace(/\s+/g, "-").slice(0, 72) || "unknown";
+      track("event/js-error/" + slug);
     }
     window.addEventListener("error", reportError);
     window.addEventListener("unhandledrejection", reportError);
