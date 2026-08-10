@@ -662,6 +662,17 @@
       if (state.pro) openArchive(); else openPro("archive");
     });
 
+    // launch-day only: point our own players at the Product Hunt page (auto-expires)
+    var today = new Date();
+    if (today.getFullYear() === 2026 && today.getMonth() === 7 && today.getDate() === 11) {
+      var ph = el("a", "ph-banner", "🚀 Ballpark is live on Product Hunt today — support the launch →");
+      ph.href = "https://www.producthunt.com/products/ballpark-the-daily-estimation-game?utm_source=ballpark&utm_medium=web";
+      ph.target = "_blank";
+      ph.rel = "noopener";
+      ph.addEventListener("click", function () { track("event/ph-click"); });
+      screen.appendChild(ph);
+    }
+
     var cd = el("div", "countdown");
     screen.appendChild(cd);
     if (!state.pro) {

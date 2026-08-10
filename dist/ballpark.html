@@ -267,6 +267,22 @@ button { font-family: inherit; cursor: pointer; }
 /* dispute link inside verdict source line */
 .dispute { color: inherit; }
 
+/* launch-day Product Hunt banner (shown one day only) */
+.ph-banner {
+  display: block;
+  margin-top: 12px;
+  padding: 11px 14px;
+  background: var(--surface);
+  border: 2px dashed var(--tape-deep);
+  border-radius: var(--radius);
+  color: var(--ink);
+  font-weight: 700;
+  font-size: 0.9rem;
+  text-align: center;
+  text-decoration: none;
+}
+.ph-banner:hover { border-style: solid; }
+
 /* quiet inline action */
 .linklike {
   background: none; border: none;
@@ -5997,6 +6013,17 @@ window.BALLPARK_DATA = {
     archiveBtn.addEventListener("click", function () {
       if (state.pro) openArchive(); else openPro("archive");
     });
+
+    // launch-day only: point our own players at the Product Hunt page (auto-expires)
+    var today = new Date();
+    if (today.getFullYear() === 2026 && today.getMonth() === 7 && today.getDate() === 11) {
+      var ph = el("a", "ph-banner", "🚀 Ballpark is live on Product Hunt today — support the launch →");
+      ph.href = "https://www.producthunt.com/products/ballpark-the-daily-estimation-game?utm_source=ballpark&utm_medium=web";
+      ph.target = "_blank";
+      ph.rel = "noopener";
+      ph.addEventListener("click", function () { track("event/ph-click"); });
+      screen.appendChild(ph);
+    }
 
     var cd = el("div", "countdown");
     screen.appendChild(cd);

@@ -262,6 +262,22 @@ button { font-family: inherit; cursor: pointer; }
 /* dispute link inside verdict source line */
 .dispute { color: inherit; }
 
+/* launch-day Product Hunt banner (shown one day only) */
+.ph-banner {
+  display: block;
+  margin-top: 12px;
+  padding: 11px 14px;
+  background: var(--surface);
+  border: 2px dashed var(--tape-deep);
+  border-radius: var(--radius);
+  color: var(--ink);
+  font-weight: 700;
+  font-size: 0.9rem;
+  text-align: center;
+  text-decoration: none;
+}
+.ph-banner:hover { border-style: solid; }
+
 /* quiet inline action */
 .linklike {
   background: none; border: none;
