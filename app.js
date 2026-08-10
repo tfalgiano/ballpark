@@ -65,19 +65,35 @@
   function valToPos(q, v) {
     return q.scale === "log" ? Math.log(v / q.lo) / Math.log(q.hi / q.lo) : (v - q.lo) / (q.hi - q.lo);
   }
-  function snapVal(q, v) {
-    var s;
+  function snapStepSize(q, v) {
     if (q.scale === "linear") {
       var span = q.hi - q.lo;
-      var step = span > 4000 ? 10 : span > 400 ? 1 : span > 40 ? 1 : span > 4 ? 0.5 : 0.1;
-      s = Math.round(v / step) * step;
-    } else {
-      // 2 significant figures reads like an instrument, not a spreadsheet
-      if (v === 0) return 0;
-      var mag = Math.pow(10, Math.floor(Math.log10(Math.abs(v))) - 1);
-      s = Math.round(v / mag) * mag;
+      return span > 4000 ? 10 : span > 400 ? 1 : span > 40 ? 1 : span > 4 ? 0.5 : 0.1;
     }
+    if (v === 0) return 0.1;
+    return Math.pow(10, Math.floor(Math.log10(Math.abs(v))) - 1);
+  }
+  function snapVal(q, v) {
+    var step = snapStepSize(q, v);
+    var s = Math.round(v / step) * step;
     return Math.min(q.hi, Math.max(q.lo, +s.toPrecision(12)));
+  }
+  // The displayed numbers ARE the answer: handles, scoring, and readout all use
+  // this. Ranges keep at least one snap step of width so "2–2" can never show.
+  function quantizeRange(q, pLo, pHi) {
+    var lo = snapVal(q, posToVal(q, pLo));
+    var hi = snapVal(q, posToVal(q, pHi));
+    if (hi <= lo) {
+      var up = snapVal(q, lo + snapStepSize(q, lo));
+      if (up > lo) {
+        hi = up;
+      } else {
+        hi = lo;
+        var down = snapVal(q, hi - snapStepSize(q, hi));
+        if (down < hi) lo = down;
+      }
+    }
+    return { lo: lo, hi: hi };
   }
   function fmtVal(q, v) {
     var abs = Math.abs(v);
@@ -92,7 +108,9 @@
 
   // ---------- scoring ----------
   function scoreAnswer(q, vLo, vHi) {
-    var hit = q.answer >= vLo && q.answer <= vHi;
+    // boundaries count as inside; epsilon guards float noise at exact edges
+    var eps = Math.max(1e-9, Math.abs(q.answer) * 1e-9);
+    var hit = q.answer >= vLo - eps && q.answer <= vHi + eps;
     var w = valToPos(q, vHi) - valToPos(q, vLo);
     var pts = hit ? Math.round(15 + 85 * Math.pow(1 - w, 1.4)) : 0;
     return { hit: hit, w: w, pts: pts };
@@ -169,19 +187,21 @@
     wrap.appendChild(labels);
 
     function values() {
-      return { lo: snapVal(q, posToVal(q, pLo)), hi: snapVal(q, posToVal(q, pHi)) };
+      return quantizeRange(q, pLo, pHi);
     }
     function paint() {
-      hLo.style.left = (pLo * 100) + "%";
-      hHi.style.left = (pHi * 100) + "%";
-      fill.style.left = (pLo * 100) + "%";
-      fill.style.right = ((1 - pHi) * 100) + "%";
+      // render at the quantized positions so what you see is what gets scored
       var v = values();
+      var qLo = valToPos(q, v.lo), qHi = valToPos(q, v.hi);
+      hLo.style.left = (qLo * 100) + "%";
+      hHi.style.left = (qHi * 100) + "%";
+      fill.style.left = (qLo * 100) + "%";
+      fill.style.right = ((1 - qHi) * 100) + "%";
       hLo.setAttribute("aria-valuemin", q.lo); hLo.setAttribute("aria-valuemax", q.hi);
       hHi.setAttribute("aria-valuemin", q.lo); hHi.setAttribute("aria-valuemax", q.hi);
       hLo.setAttribute("aria-valuenow", v.lo); hLo.setAttribute("aria-valuetext", fmtVal(q, v.lo) + " " + q.unit);
       hHi.setAttribute("aria-valuenow", v.hi); hHi.setAttribute("aria-valuetext", fmtVal(q, v.hi) + " " + q.unit);
-      onChange(v.lo, v.hi, pHi - pLo);
+      onChange(v.lo, v.hi, qHi - qLo);
     }
     function setP(which, p) {
       if (which === "lo") pLo = Math.max(0, Math.min(p, pHi - MIN_GAP));
@@ -250,8 +270,6 @@
     return {
       root: wrap,
       values: values,
-      // raw geometry — what the player actually sees on the track; used for scoring
-      raw: function () { return { lo: posToVal(q, pLo), hi: posToVal(q, pHi), w: pHi - pLo }; },
       width: function () { return pHi - pLo; },
       lock: function () { locked = true; wrap.style.touchAction = "auto"; },
       reveal: function (answer, hit) {
@@ -342,11 +360,9 @@
       screen.appendChild(actions);
 
       lockBtn.addEventListener("click", function () {
+        // the readout numbers are the contract: they are exactly what gets scored
         var v = slider.values();
-        var raw = slider.raw();
-        // score the geometry the player sees on the track, not the rounded readout —
-        // snapping can collapse both readout values to the same number on narrow log scales
-        var a = scoreAnswer(q, raw.lo, raw.hi);
+        var a = scoreAnswer(q, v.lo, v.hi);
         a.qid = opts.qids[i]; a.lo = v.lo; a.hi = v.hi;
         answers.push(a);
         if (!state.seenTutorial) { state.seenTutorial = true; saveState(); }
@@ -368,7 +384,7 @@
         } else {
           // how far outside the brackets the truth landed, in track space
           var pAns = Math.max(0, Math.min(1, valToPos(q, q.answer)));
-          var dist = pAns < valToPos(q, raw.lo) ? valToPos(q, raw.lo) - pAns : pAns - valToPos(q, raw.hi);
+          var dist = pAns < valToPos(q, v.lo) ? valToPos(q, v.lo) - pAns : pAns - valToPos(q, v.hi);
           var missWord = dist <= 0.03 ? "✗ Missed by a hair" : dist <= 0.1 ? "✗ Missed — close" : "✗ Missed";
           word = '<span class="verdict-word is-miss">' + missWord + "</span>";
         }
@@ -995,8 +1011,8 @@
   // Pure core exposed for tests and tooling.
   window.BALLPARK_CORE = {
     posToVal: posToVal, valToPos: valToPos, snapVal: snapVal, fmtVal: fmtVal,
-    scoreAnswer: scoreAnswer, emojiFor: emojiFor, dayNumber: dayNumber,
-    puzzleForDay: puzzleForDay, validCode: validCode
+    quantizeRange: quantizeRange, scoreAnswer: scoreAnswer, emojiFor: emojiFor,
+    dayNumber: dayNumber, puzzleForDay: puzzleForDay, validCode: validCode
   };
 
   // ---------- boot ----------

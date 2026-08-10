@@ -68,6 +68,45 @@ test("emoji tiers", () => {
   assert.strictEqual(C.emojiFor({ hit: false, w: 0.1 }), "🟥");
 });
 
+// ---------- what-you-see-is-what-scores (player bug reports, Aug 2026) ----------
+test("Vesuvius case: readout 79-87 must trap 79", () => {
+  // player dragged until display showed 79; raw position was slightly above
+  const q = { scale: "linear", lo: 0, hi: 500, answer: 79 };
+  const pLo = C.valToPos(q, 79.4); // displays as 79
+  const pHi = C.valToPos(q, 87.2); // displays as 87
+  const r = C.quantizeRange(q, pLo, pHi);
+  assert.strictEqual(r.lo, 79);
+  assert.ok(C.scoreAnswer(q, r.lo, r.hi).hit, "79 must be inside 79-87");
+});
+test("Apollo case: readout 1969-1970 must trap 1969", () => {
+  const q = { scale: "linear", lo: 1950, hi: 2020, answer: 1969 };
+  const r = C.quantizeRange(q, C.valToPos(q, 1969.3), C.valToPos(q, 1969.8));
+  assert.ok(r.lo <= 1969 && r.hi >= 1969, `range ${r.lo}-${r.hi} must contain 1969`);
+  assert.ok(C.scoreAnswer(q, r.lo, r.hi).hit);
+});
+test("DNA case: pinched handles can never display x-x", () => {
+  const q = { scale: "log", lo: 0.5, hi: 50, answer: 2 };
+  const p = C.valToPos(q, 2.04);
+  const r = C.quantizeRange(q, p, p + 0.001);
+  assert.ok(r.hi > r.lo, `collapsed to ${r.lo}-${r.hi}`);
+  assert.ok(C.scoreAnswer(q, r.lo, r.hi).hit, "2 must be inside " + r.lo + "-" + r.hi);
+});
+test("quantized range never collapses anywhere on any real question", () => {
+  for (const [id, q] of Object.entries(DATA.questions)) {
+    for (const p of [0, 0.1, 0.33, 0.5, 0.77, 0.98]) {
+      const r = C.quantizeRange(q, p, Math.min(1, p + 0.02));
+      assert.ok(r.hi > r.lo, `${id} at p=${p}: ${r.lo}-${r.hi}`);
+      assert.ok(r.lo >= q.lo && r.hi <= q.hi, `${id} out of bounds`);
+    }
+  }
+});
+test("exact boundary counts as inside on both edges", () => {
+  const q = { scale: "linear", lo: 0, hi: 100, answer: 30 };
+  assert.ok(C.scoreAnswer(q, 30, 40).hit);
+  assert.ok(C.scoreAnswer(q, 20, 30).hit);
+  assert.ok(!C.scoreAnswer(q, 30.5, 40).hit);
+});
+
 // ---------- schedule ----------
 test("epoch day is day 0 → puzzle #1", () => {
   const e = DATA.epoch.split("-").map(Number);
