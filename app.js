@@ -579,10 +579,8 @@
     }
   }
   function shareUrl() {
-    if (location.origin === "null" || location.protocol === "file:" || /claude\.ai$/.test(location.hostname)) {
-      return "https://tfalgiano.github.io/ballpark/";
-    }
-    return location.origin + location.pathname.replace(/index\.html$/, "");
+    // shares always point at the canonical domain, wherever the game is running
+    return "https://theballparkgame.com/";
   }
   function renderSummary(n, celebrate) {
     var rec = state.history[n];
