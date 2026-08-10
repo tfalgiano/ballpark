@@ -955,16 +955,21 @@
         ctx === "archive" ? "The archive is a Pro perk." : "One coffee. Forever sharp."));
       var card = el("div", "pro-card");
       card.appendChild(el("h3", "", "Everything in free, plus:"));
+      var price = window.BALLPARK_PRO_PRICE || "$14";
       var ul = el("ul");
       ["Unlimited practice rounds", "The full archive — replay every past ballpark",
-       "Category breakdown — find your blind spots", "One-time $14 — support an indie daily game"].forEach(function (li) {
+       "Category breakdown — find your blind spots", "One-time " + price + " — support an indie daily game"].forEach(function (li) {
         ul.appendChild(el("li", "", li));
       });
       card.appendChild(ul);
       var buy = el("a");
       buy.className = "btn btn-primary";
       buy.style.display = "block"; buy.style.textAlign = "center"; buy.style.textDecoration = "none";
-      buy.textContent = "Get Pro — $14 once";
+      if (window.BALLPARK_PRO_WAS) {
+        buy.innerHTML = "Get Pro — <s>" + esc(window.BALLPARK_PRO_WAS) + "</s> " + esc(price) + " launch price";
+      } else {
+        buy.textContent = "Get Pro — " + price + " once";
+      }
       buy.href = window.BALLPARK_PRO_URL || "#";
       if (!window.BALLPARK_PRO_URL) {
         buy.addEventListener("click", function (ev) { ev.preventDefault(); toast("Checkout opens at launch — codes work now"); });
