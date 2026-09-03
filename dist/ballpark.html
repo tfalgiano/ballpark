@@ -5880,7 +5880,13 @@ window.BALLPARK_DATA = {
     var n = dayNumber();
     if (n < 0) { stage.innerHTML = ""; stage.appendChild(el("div", "summary", "<p>Ballpark opens on " + esc(DATA.epoch) + ". See you then.</p>")); return; }
     var rec = state.history[n] || (state.history[n] = { answers: [], done: false });
-    if (rec.done) { renderSummary(n); return; }
+    /* Partitions the top of the funnel. A pageview is not an opportunity to
+       play: a player who already finished today lands straight on their summary
+       and never sees a question, and so does every PWA re-open. Without this
+       split, those sit in the denominator and make the start rate look broken
+       when nothing is wrong. entry-puzzle is the real denominator. */
+    if (rec.done) { track("evt/entry-summary"); renderSummary(n); return; }
+    track("evt/entry-puzzle");
 
     document.getElementById("puzzle-no").textContent = "#" + (n + 1);
     summaryDay = null;

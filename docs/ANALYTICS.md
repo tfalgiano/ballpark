@@ -100,6 +100,14 @@ shared — which is how we tell player-driven growth from publisher-driven growt
 |---|---|
 | `evt/finish-streak/{1,2,3-4,5-7,8-14,15-30,31plus}` | Every finish, bucketed by streak. Gives the live streak distribution. |
 
+| `evt/entry-puzzle` | Landed on the daily and question 1 rendered |
+| `evt/entry-summary` | Landed on the daily but had already finished it today |
+
+`evt/entry-puzzle` is the **real denominator** for the start rate. A raw pageview
+is not an opportunity to play: a player who already finished today goes straight
+to their summary, and so does every re-open of the installed PWA. Both were
+sitting in the denominator and dragging the apparent start rate down.
+
 ### `event/` — legacy, kept for series continuity
 
 `event/started-daily` · `event/finished-daily` · `event/returning-player` ·
