@@ -228,9 +228,23 @@ if (amendments.length) {
     }
     const day = frozenDays[a.dayIndex];
     if (!day) { refusals.push(`${where}: no such day in the pack`); continue; }
-    const pos = day.indexOf(a.replace);
-    if (pos < 0) { refusals.push(`${where}: does not contain ${a.replace}`); continue; }
     if (!questions[a.with]) { refusals.push(`${where}: replacement ${a.with} is not a known question`); continue; }
+
+    /* An amendment is a standing statement about what a day should contain, not
+       a one-shot transition. Once applied it is baked into puzzles.js, which is
+       an INPUT to the next build — so a build that only knows how to apply
+       "swap A for B" refuses forever after the first success. Re-applying has
+       to be a no-op, and the retirement still has to register or the replaced
+       question gets re-dealt onto a future day. */
+    const pos = day.indexOf(a.replace);
+    if (pos < 0) {
+      if (day.indexOf(a.with) >= 0) {
+        if (a.retire) retired.add(a.replace);
+        continue;                                  // already applied
+      }
+      refusals.push(`${where}: contains neither ${a.replace} nor ${a.with}`);
+      continue;
+    }
     if (scheduled.has(a.with)) { refusals.push(`${where}: replacement ${a.with} is already scheduled elsewhere`); continue; }
     if (questions[a.with].categoryName !== questions[a.replace].categoryName) {
       refusals.push(`${where}: ${a.with} is ${questions[a.with].categoryName} but ${a.replace} is ${questions[a.replace].categoryName}; a day must keep five distinct categories`);
@@ -247,7 +261,8 @@ if (amendments.length) {
   if (refusals.length) {
     console.error(`\nREFUSING TO BUILD - ${refusals.length} invalid schedule amendment(s):\n`);
     for (const r of refusals) console.error("  - " + r);
-    console.error("\nAmendments may only touch days that have NOT been played.\n");
+    console.error("\nAmendments may only touch days that have NOT been played, and must name a\n" +
+      "question the day actually contains.\n");
     process.exit(1);
   }
 }

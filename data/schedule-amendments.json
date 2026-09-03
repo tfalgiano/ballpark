@@ -1,1 +1,12 @@
-[]
+[
+  {
+    "dayIndex": 59,
+    "replace": "culture37",
+    "with": "culture99",
+    "retire": true,
+    "reason": "culture37 asks Nintendo's founding year (1889). history19 asks the same question in different words and was played on day index 27 (puzzle #28). Day 59 has not been played, so it is amendable; culture37 is retired rather than re-dealt because the defect travels with the question, not the slot.",
+    "replacementVerifiedBy": "3 authors on disjoint angles, 2 independent adversarial verifiers; both confirmed 673 panes against the Louvre Pyramid article and both corrected the reveal.",
+    "approvedBy": "Tyler",
+    "approvedOn": "2026-09-03"
+  }
+]

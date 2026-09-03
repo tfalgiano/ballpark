@@ -11472,5 +11472,24 @@
     "note": "Checked en.wikipedia.org/wiki/Sistine_Chapel_ceiling: painted between 1508 and 1512, approximately four years. Reveal verified against the same article: Vasari records that he worked 'with his head tilted backwards', standing on scaffolding of his own design rather than lying down, and Michelangelo's own poem to Giovanni da Pistoia describes his beard turning up to heaven and the brush dripping on his face. Track position 0.158 (linear 1..20) — low but above the 0.08 floor, so the range is acceptable; tightening hi to 15 would centre it better if you want more separation."
    }
   ]
+ },
+ {
+  "category": "culture",
+  "categoryName": "Money, Tech & Pop Culture",
+  "questions": [
+   {
+    "prompt": "The glass pyramid outside the Louvre in Paris is built from how many panes of glass?",
+    "answer": 673,
+    "unit": "panes",
+    "scale": "log",
+    "lo": 100,
+    "hi": 20000,
+    "source": "Wikipedia (Louvre Pyramid): 603 rhombi plus 70 triangles, confirmed by the Louvre",
+    "reveal": "A rumour that it has exactly 666 panes has followed it since the 1980s, when the official brochure published during construction cited that number twice. Architect I. M. Pei's office says President Mitterrand never specified any number of panes.",
+    "confidence": "high",
+    "asOf": null
+   }
+  ],
+  "verdicts": []
  }
 ]
