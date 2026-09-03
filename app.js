@@ -1042,19 +1042,33 @@
     // one beacon per session: surface silent crashes in analytics, no backend
     // needed. A short sanitized slug of the message makes errors diagnosable.
     var errorReported = false;
-    function reportError(ev) {
+    function slugify(s) {
+      return String(s).toLowerCase().replace(/https?:\/\/\S+/g, "").replace(/[^a-z0-9 ]+/g, " ")
+        .trim().replace(/\s+/g, "-").slice(0, 72);
+    }
+    function reportError(kind, ev) {
       if (errorReported) return;
       errorReported = true;
-      var msg = "";
+      var parts = [kind];
       try {
-        msg = String((ev && (ev.message || (ev.reason && ev.reason.message) || ev.reason)) || "unknown");
-      } catch (e) { msg = "unknown"; }
-      var slug = msg.toLowerCase().replace(/https?:\/\/\S+/g, "").replace(/[^a-z0-9 ]+/g, " ")
-        .trim().replace(/\s+/g, "-").slice(0, 72) || "unknown";
+        var src = ev && (ev.reason !== undefined && ev.reason !== null ? ev.reason : ev);
+        // a message alone is often empty (cross-origin scripts, reason-less
+        // rejections) — the constructor name and origin file are what make
+        // those diagnosable, so record them too
+        var name = src && src.name ? src.name
+          : (src && src.constructor && src.constructor.name) || "";
+        var msg = (src && src.message) || (typeof src === "string" ? src : "");
+        if (name && name !== "Error") parts.push(slugify(name));
+        if (msg) parts.push(slugify(msg));
+        // filename is same-origin for our own scripts; strip the path, keep the file
+        var file = ev && ev.filename ? String(ev.filename).split("/").pop() : "";
+        if (file) parts.push(slugify(file) + (ev.lineno ? "-" + ev.lineno : ""));
+      } catch (e) { parts.push("introspect-failed"); }
+      var slug = parts.filter(Boolean).join("/") || "unknown";
       track("event/js-error/" + slug);
     }
-    window.addEventListener("error", reportError);
-    window.addEventListener("unhandledrejection", reportError);
+    window.addEventListener("error", function (ev) { reportError("err", ev); });
+    window.addEventListener("unhandledrejection", function (ev) { reportError("rej", ev); });
 
     // URL params: ?code= is Stripe's after-checkout return; ?d=&s= is a challenge link
     var challengeDayParam = NaN, challengeScoreParam = NaN;

@@ -363,7 +363,7 @@ window.BALLPARK_DATA = {
    "hi": 500,
    "asOf": null,
    "source": "Guinness World Records",
-   "reveal": "That is roughly 4 cm an hour, fast enough that a patient observer can actually watch it happen.",
+   "reveal": "That is roughly 4 cm an hour, fast enough that a patient observer can actually watch it happen. Individual stalks have been clocked past 120 cm.",
    "categoryName": "Nature & Animals",
    "tag": "gut"
   },
