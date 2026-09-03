@@ -45,6 +45,24 @@ function mulberry32(seed) {
   };
 }
 
+/* near-duplicate detection helpers (see the check inside the batch loop) */
+const STOPWORDS = new Set(("the a an of in on at to for how many is are does do what which " +
+  "with and or by its it about roughly up per one").split(" "));
+function tokens(s) {
+  return new Set(String(s).toLowerCase().replace(/[^a-z0-9 ]/g, " ").split(/\s+/)
+    .filter((w) => w.length > 2 && !STOPWORDS.has(w)));
+}
+function similarity(a, b) {
+  let hit = 0;
+  for (const w of a) if (b.has(w)) hit++;
+  return hit / (a.size + b.size - hit);
+}
+const accepted = [];   // {prompt, tokens, unit, answer} for everything kept so far
+
+/* Loaded before the batch loop: validation needs to know which ids are already
+   published so it can leave them alone. */
+const published = loadPublished();
+const publishedIds = new Set(published ? published.days.flat() : []);
 const questions = {};
 const byCat = {};
 const seenPrompts = new Set();
@@ -63,33 +81,72 @@ for (const batch of batches) {
       if (v.correctedLo !== undefined) q.lo = v.correctedLo;
       if (v.correctedHi !== undefined) q.hi = v.correctedHi;
       if (v.correctedPrompt) q.prompt = v.correctedPrompt;
+      if (v.correctedReveal) q.reveal = v.correctedReveal;
       report.fixed++;
+      /* A "fix" that carries no correction is a silent no-op: the verifier saw
+         something wrong and nothing changed. The first content batch produced 11
+         of these, every one a factually wrong reveal that would have shipped. */
+      if (v.correctedAnswer === undefined && v.correctedLo === undefined &&
+          v.correctedHi === undefined && !v.correctedPrompt && !v.correctedReveal) {
+        report.dropped++;
+        report.rejected.push([q.prompt, 'verifier said "fix" but supplied no correction: ' + (v.note || "")]);
+        return;
+      }
     }
 
-    // hard validation - anything failing is rejected, not repaired silently
-    const problems = [];
-    if (!(q.lo < q.hi)) problems.push("lo >= hi");
-    if (q.scale === "log" && q.lo <= 0) problems.push("log scale with lo <= 0");
-    if (typeof q.answer !== "number" || !isFinite(q.answer)) problems.push("bad answer");
-    if (!problems.length) {
-      const p = valToPos(q, q.answer);
-      if (!(p >= MIN_MARGIN && p <= 1 - MIN_MARGIN)) problems.push(`answer at ${(p * 100).toFixed(0)}% of track (needs ${MIN_MARGIN * 100}% margin)`);
-    }
-    if (!q.prompt || q.prompt.length > 140) problems.push("prompt missing/too long");
-    if (!q.unit) problems.push("no unit");
     const key = q.prompt.toLowerCase().replace(/[^a-z0-9]+/g, " ").trim();
-    if (seenPrompts.has(key)) problems.push("duplicate prompt");
+    const t = tokens(q.prompt);
 
-    if (problems.length) { report.dropped++; report.rejected.push([q.prompt, problems.join("; ")]); return; }
-    seenPrompts.add(key);
-
+    /* IDs are positional, so the id has to be known BEFORE validation runs: a
+       question that has already shipped keeps its id whatever a later rule says
+       about it. Rejecting one retroactively would slide every later id in the
+       category onto a different prompt and silently rewrite days people have
+       played. New rules apply to new candidates only — published content is
+       immutable, including its mistakes. */
     const id = batch.category + (byCat[batch.category].length + 1);
+    const isPublished = publishedIds.has(id);
+
+    if (!isPublished) {
+      // hard validation - anything failing is rejected, not repaired silently
+      const problems = [];
+      if (!(q.lo < q.hi)) problems.push("lo >= hi");
+      if (q.scale === "log" && q.lo <= 0) problems.push("log scale with lo <= 0");
+      if (typeof q.answer !== "number" || !isFinite(q.answer)) problems.push("bad answer");
+      if (!problems.length) {
+        const p = valToPos(q, q.answer);
+        if (!(p >= MIN_MARGIN && p <= 1 - MIN_MARGIN)) problems.push(`answer at ${(p * 100).toFixed(0)}% of track (needs ${MIN_MARGIN * 100}% margin)`);
+      }
+      if (!q.prompt || q.prompt.length > 140) problems.push("prompt missing/too long");
+      if (!q.unit) problems.push("no unit");
+      if (seenPrompts.has(key)) problems.push("duplicate prompt");
+
+      /* Exact-prompt matching misses the duplicates that actually happen. Batch 1
+         produced ten pairs like "gives off body heat at about how many watts" vs
+         "...at roughly how many watts" — different strings, same question. Word
+         overlap alone cannot judge it, because "average temperature on Mars" and
+         "...on Venus" overlap just as much and are entirely different questions.
+         The discriminator is the ANSWER: near-identical wording AND a near-
+         identical answer in the same unit. This still false-positives on a shared
+         template with coincidentally close answers (Brazil and Australia have
+         similar land areas), so it reports the match it objected to. */
+      for (const prev of accepted) {
+        if (similarity(t, prev.tokens) < 0.45) continue;
+        if (prev.unit !== q.unit) continue;
+        const a = Math.abs(q.answer), b = Math.abs(prev.answer);
+        const close = Math.max(a, b) === 0 ? true : Math.abs(a - b) / Math.max(a, b) <= 0.1;
+        if (close) { problems.push(`near-duplicate of "${prev.prompt}"`); break; }
+      }
+
+      if (problems.length) { report.dropped++; report.rejected.push([q.prompt, problems.join("; ")]); return; }
+    }
+    seenPrompts.add(key);
     questions[id] = {
       prompt: q.prompt, answer: q.answer, unit: q.unit, scale: q.scale,
       lo: q.lo, hi: q.hi, asOf: q.asOf || null,
       source: q.source, reveal: q.reveal, categoryName: batch.categoryName,
     };
     byCat[batch.category].push(id);
+    accepted.push({ prompt: q.prompt, tokens: t, unit: q.unit, answer: q.answer });
     report.kept++;
   });
 }
@@ -101,7 +158,6 @@ positions.forEach((p) => thirds[Math.min(2, Math.floor(p * 3))]++);
 console.log(`answer position spread: low ${thirds[0]} / mid ${thirds[1]} / high ${thirds[2]}`);
 
 /* ---- freeze the published schedule ---------------------------------- */
-const published = loadPublished();
 const frozenDays = published ? published.days.slice() : [];
 const used = new Set(frozenDays.flat());
 
