@@ -104,7 +104,14 @@ for (const batch of batches) {
        played. New rules apply to new candidates only — published content is
        immutable, including its mistakes. */
     const id = batch.category + (byCat[batch.category].length + 1);
-    const isPublished = publishedIds.has(id);
+    /* Identity, not just occupancy. Asking only "does this id exist in the
+       published pack" is wrong and silently non-idempotent: a question rejected
+       on the previous run leaves its prospective id pointing at the NEXT
+       question's published id, so it would bypass validation, take that id, and
+       shift every later question in the category by one. The published prompt
+       has to match this exact question. */
+    const pub = published && published.questions[id];
+    const isPublished = !!pub && pub.prompt === q.prompt;
 
     if (!isPublished) {
       // hard validation - anything failing is rejected, not repaired silently
