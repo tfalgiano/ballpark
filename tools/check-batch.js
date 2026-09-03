@@ -134,8 +134,14 @@ else pass("verdict identity", "every verdict matches its question");
 
 // ---- drifting facts need asOf ---------------------------------------------
 {
-  const drifty = survivors.filter((q) => /\b(20[2-9]\d|current|today|now)\b/i.test(q.prompt) && !q.asOf);
-  if (drifty.length) warn("drifting facts carry asOf",
+  /* A YEAR in the prompt anchors a fact rather than making it drift — "the 2022
+     World Cup" is settled forever. What drifts is a present-tense reading with
+     no anchor: "still survive today", "how many are there now". Matching bare
+     years flagged five permanently-fixed questions and no real ones. */
+  const drifty = survivors.filter((q) =>
+    /\b(currently|nowadays|to date|so far)\b/i.test(q.prompt) ||
+    /\b(today|now|current)\b(?![^?]*\b(19|20)\d\d\b)/i.test(q.prompt));
+  if (drifty.filter((q)=>!q.asOf).length) warn("drifting facts carry asOf",
     `${drifty.length} time-sensitive prompt(s) have no asOf and will silently go stale:\n        ` +
     drifty.slice(0, 3).map((q) => q.prompt).join("\n        "));
   else pass("drifting facts carry asOf");
