@@ -59,6 +59,15 @@ function similarity(a, b) {
 }
 const accepted = [];   // {prompt, tokens, unit, answer} for everything kept so far
 
+/* Stable identity for a candidate question: a hash of its prompt. Verifiers
+   return this (or the prompt itself) so a correction can be proven to belong to
+   the question it reviewed, independent of any array position. */
+const crypto = require("node:crypto");
+function qid(prompt) {
+  return crypto.createHash("sha256").update(String(prompt), "utf8").digest("hex").slice(0, 12);
+}
+const identityMismatches = [];
+
 /* Loaded before the batch loop: validation needs to know which ids are already
    published so it can leave them alone. */
 const published = loadPublished();
@@ -75,6 +84,30 @@ for (const batch of batches) {
 
   batch.questions.forEach((q, i) => {
     const v = verdictByIndex[i];
+
+    /* A verdict's coordinates are convenience metadata; its IDENTITY is the
+       prompt it claims to have reviewed. Trusting (batch, index) alone let a
+       correction land on a different question entirely — eleven repaired
+       reveals were once addressed to coordinates that pointed at a hammer on
+       Mars, IVF and the Sahara. Nothing bad shipped only because the merge
+       happened to check. Now the build checks, and a mismatch fails the whole
+       build rather than dropping one question: if one verdict is misaligned,
+       the rest of that file probably is too. */
+    if (v && (v.prompt !== undefined || v.qid !== undefined)) {
+      const claimed = v.prompt !== undefined ? v.prompt : null;
+      const claimedId = v.qid !== undefined ? v.qid : null;
+      const actualId = qid(q.prompt);
+      if ((claimed !== null && claimed !== q.prompt) ||
+          (claimedId !== null && claimedId !== actualId)) {
+        identityMismatches.push(
+          `${batch.category} index ${i}: verdict claims to be about\n` +
+          `      "${claimed !== null ? claimed : claimedId}"\n` +
+          `    but that position holds\n` +
+          `      "${q.prompt}" (qid ${actualId})`);
+        return;
+      }
+    }
+
     if (v && v.verdict === "drop") { report.dropped++; report.rejected.push([q.prompt, "verifier: " + v.note]); return; }
     if (v && v.verdict === "fix") {
       if (v.correctedAnswer !== undefined) q.answer = v.correctedAnswer;
@@ -156,6 +189,17 @@ for (const batch of batches) {
     accepted.push({ prompt: q.prompt, tokens: t, unit: q.unit, answer: q.answer });
     report.kept++;
   });
+}
+
+if (identityMismatches.length) {
+  console.error(`\nREFUSING TO BUILD - ${identityMismatches.length} verdict(s) do not match the question at their index:\n`);
+  for (const m of identityMismatches) console.error("  - " + m);
+  console.error(
+    "\nA verdict carries the prompt (or qid) of the question it reviewed. When that\n" +
+    "disagrees with the question at its index, the verdict file is misaligned and a\n" +
+    "correction would land on the wrong question. Coordinates are metadata; the\n" +
+    "prompt is the identity. Fix the verdicts, not the index.\n");
+  process.exit(1);
 }
 
 // answer-position spread check: the midpoint must not be a tell

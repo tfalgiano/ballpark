@@ -262,6 +262,68 @@ try {
     }
     if (dupes.length) throw new Error(`${dupes.length} semantic duplicate pair(s):\n        ${dupes.join("\n        ")}`);
   });
+  /* 10. Coordinates are not identity. A correction addressed to the wrong index
+         must not silently edit whatever happens to sit there. This is not
+         hypothetical: eleven reveal repairs were once addressed to coordinates
+         that pointed at completely different questions, and only a check at the
+         merge stopped them landing. */
+  check("a valid correction on the WRONG index cannot modify another question", () => {
+    const before = load(PUZZLES);
+    const v = JSON.parse(backup.verified);
+    const batch = v.find((b) => b.category === "space" && b.questions.length > 5);
+    const victimIndex = 3;
+    const victim = batch.questions[victimIndex];
+    // a correction that is internally valid, but claims to be about a DIFFERENT question
+    batch.verdicts = (batch.verdicts || []).concat([{
+      index: victimIndex,
+      verdict: "fix",
+      prompt: "A question that does not exist at this index at all?",
+      note: "pipeline verification probe",
+      correctedAnswer: 999999,
+      correctedReveal: "This correction must never be applied.",
+    }]);
+    fs.writeFileSync(VERIFIED, JSON.stringify(v, null, 1));
+    const out = buildExpectingRefusal();
+    fs.writeFileSync(VERIFIED, backup.verified);
+    build();
+    if (out === null) {
+      const after = load(PUZZLES);
+      const changed = Object.keys(after.questions).find((id) =>
+        after.questions[id].answer === 999999 ||
+        /must never be applied/.test(after.questions[id].reveal || ""));
+      throw new Error(changed
+        ? `the misaddressed correction was applied to ${changed}`
+        : "build accepted a verdict whose claimed prompt does not match its index");
+    }
+    if (!/do not match the question at their index|identity/i.test(out)) {
+      throw new Error("build failed, but not with an identity-mismatch refusal");
+    }
+    // and the victim must be untouched
+    const after = load(PUZZLES);
+    const stillThere = Object.values(after.questions).some((q) => q.prompt === victim.prompt);
+    if (!stillThere) throw new Error(`${victim.prompt} disappeared after the probe`);
+  });
+
+  check("a correction carrying the CORRECT prompt still applies", () => {
+    const v = JSON.parse(backup.verified);
+    const batch = v.find((b) => b.category === "space" && b.questions.length > 5);
+    const i = 4;
+    batch.verdicts = (batch.verdicts || []).concat([{
+      index: i,
+      verdict: "fix",
+      prompt: batch.questions[i].prompt,           // identity matches
+      note: "pipeline verification probe",
+      correctedReveal: "Probe reveal applied by the identity-checked path.",
+    }]);
+    fs.writeFileSync(VERIFIED, JSON.stringify(v, null, 1));
+    const out = buildExpectingRefusal();
+    const applied = out === null &&
+      Object.values(load(PUZZLES).questions).some((q) => q.reveal === "Probe reveal applied by the identity-checked path.");
+    fs.writeFileSync(VERIFIED, backup.verified);
+    build();
+    if (out !== null) throw new Error("build refused a correction whose prompt DOES match — guard is too strict");
+    if (!applied) throw new Error("a correctly-addressed correction was not applied");
+  });
 } finally {
   fs.writeFileSync(PUZZLES, backup.puzzles);
   fs.writeFileSync(VERIFIED, backup.verified);
