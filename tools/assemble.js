@@ -165,15 +165,14 @@ positions.forEach((p) => thirds[Math.min(2, Math.floor(p * 3))]++);
 console.log(`answer position spread: low ${thirds[0]} / mid ${thirds[1]} / high ${thirds[2]}`);
 
 /* ---- freeze the published schedule ---------------------------------- */
-const frozenDays = published ? published.days.slice() : [];
-const used = new Set(frozenDays.flat());
+const frozenDays = published ? published.days.map((d) => d.slice()) : [];
 
 if (published) {
   // IDs are positional (category + index), so a dropped or reordered question
   // silently shifts every later ID onto the wrong prompt. Refuse to build
   // rather than repoint a day that people have already played.
   const drift = [];
-  for (const id of used) {
+  for (const id of new Set(frozenDays.flat())) {
     const before = published.questions[id];
     const after = questions[id];
     if (!after) { drift.push(`${id}: no longer exists`); continue; }
@@ -197,11 +196,69 @@ if (published) {
   }
 }
 
+/* ---- amendments to scheduled-but-UNPLAYED days ----------------------- */
+/* Played content is immutable. Scheduled-but-unplayed content is amendable when
+   a concrete defect is found — but only through an explicit, recorded, reviewed
+   amendment, never as a side effect of a rebuild. Each entry names the exact
+   day, the question leaving it and the question replacing it, so the change is
+   reviewable in a diff instead of emerging from a shuffle. */
+const retired = new Set();
+const AMEND_PATH = path.join(ROOT, "data", "schedule-amendments.json");
+const amendments = fs.existsSync(AMEND_PATH)
+  ? JSON.parse(fs.readFileSync(AMEND_PATH, "utf8")) : [];
+
+if (amendments.length) {
+  const e = EPOCH.split("-").map(Number);
+  const now = new Date();
+  /* Today counts as PLAYED and is therefore off limits: the day rolls over on
+     each player's own clock, so somewhere in UTC+14 today's puzzle was answered
+     hours ago. Only strictly-future days can be amended. */
+  const todayIndex = Math.floor(
+    (Date.UTC(now.getFullYear(), now.getMonth(), now.getDate()) -
+     Date.UTC(e[0], e[1] - 1, e[2])) / 864e5);
+  const scheduled = new Set(frozenDays.flat());
+  const refusals = [];
+
+  for (const a of amendments) {
+    const where = `day index ${a.dayIndex} (puzzle #${a.dayIndex + 1})`;
+    if (!Number.isInteger(a.dayIndex)) { refusals.push(`${where}: dayIndex is not an integer`); continue; }
+    if (a.dayIndex <= todayIndex) {
+      refusals.push(`${where}: already played (today is index ${todayIndex}). Played days are immutable.`);
+      continue;
+    }
+    const day = frozenDays[a.dayIndex];
+    if (!day) { refusals.push(`${where}: no such day in the pack`); continue; }
+    const pos = day.indexOf(a.replace);
+    if (pos < 0) { refusals.push(`${where}: does not contain ${a.replace}`); continue; }
+    if (!questions[a.with]) { refusals.push(`${where}: replacement ${a.with} is not a known question`); continue; }
+    if (scheduled.has(a.with)) { refusals.push(`${where}: replacement ${a.with} is already scheduled elsewhere`); continue; }
+    if (questions[a.with].categoryName !== questions[a.replace].categoryName) {
+      refusals.push(`${where}: ${a.with} is ${questions[a.with].categoryName} but ${a.replace} is ${questions[a.replace].categoryName}; a day must keep five distinct categories`);
+      continue;
+    }
+    day[pos] = a.with;
+    scheduled.delete(a.replace);
+    scheduled.add(a.with);
+    // a retired question is defective, not merely displaced — never re-deal it
+    if (a.retire) retired.add(a.replace);
+    console.log(`amended ${where}: ${a.replace} -> ${a.with}${a.retire ? " (retiring " + a.replace + ")" : ""}`);
+  }
+
+  if (refusals.length) {
+    console.error(`\nREFUSING TO BUILD - ${refusals.length} invalid schedule amendment(s):\n`);
+    for (const r of refusals) console.error("  - " + r);
+    console.error("\nAmendments may only touch days that have NOT been played.\n");
+    process.exit(1);
+  }
+}
+
+const used = new Set(frozenDays.flat());
+
 /* ---- deal NEW days from questions that have never been scheduled ----- */
 const rng = mulberry32(20260727);
 const decks = Object.entries(byCat)
   .map(([cat, ids]) => {
-    const d = ids.filter((id) => !used.has(id));
+    const d = ids.filter((id) => !used.has(id) && !retired.has(id));
     for (let i = d.length - 1; i > 0; i--) {
       const j = Math.floor(rng() * (i + 1));
       [d[i], d[j]] = [d[j], d[i]];

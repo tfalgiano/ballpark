@@ -90,7 +90,7 @@ days and call the result people.
 | `uniq/source/{src}/d{1,3,7,14,30}` | That source's retention |
 
 `src` is one of: `newsletter`, `challenge`, `reddit`, `producthunt`, `search`,
-`social`, `itch`, `code`, `direct`, `other`. Captured on the **first** visit and
+`social`, `itch`, `code`, `pwa`, `direct`, `other`. Captured on the **first** visit and
 never overwritten. `challenge` means they arrived on a link another player
 shared — which is how we tell player-driven growth from publisher-driven growth.
 
@@ -99,10 +99,12 @@ shared — which is how we tell player-driven growth from publisher-driven growt
 | Path | Fires |
 |---|---|
 | `evt/finish-streak/{1,2,3-4,5-7,8-14,15-30,31plus}` | Every finish, bucketed by streak. Gives the live streak distribution. |
-
 | `evt/entry-puzzle` | Landed on the daily and question 1 rendered |
 | `evt/entry-summary` | Landed on the daily but had already finished it today |
+| `evt/launch/standalone` | App opened from an installed PWA / home-screen icon |
+| `evt/launch/browser` | App opened in a normal browser tab |
 
+`evt/launch/standalone` + `evt/launch/browser` partition every app load, and
 `evt/entry-puzzle` is the **real denominator** for the start rate. A raw pageview
 is not an opportunity to play: a player who already finished today goes straight
 to their summary, and so does every re-open of the installed PWA. Both were

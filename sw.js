@@ -1,6 +1,6 @@
 /* Ballpark service worker — cache-first app shell, network-first for puzzles.js
    so content updates land without a version bump. Bump VERSION on deploy. */
-var VERSION = "ballpark-v1.4.0";
+var VERSION = "ballpark-v1.5.0";
 var SHELL = ["./", "index.html", "styles.css", "app.js", "puzzles.js", "manifest.webmanifest", "icon.svg", "count.js", "og.png"];
 
 self.addEventListener("install", function (e) {
@@ -37,7 +37,15 @@ self.addEventListener("fetch", function (e) {
     );
     return;
   }
+  /* Navigations must ignore the query string. The shell is cached as "./", but
+     real entry URLs carry parameters — "?d=37&s=9" from a shared challenge link,
+     "?code=" from checkout, and now "?src=pwa" from the installed app's
+     start_url. An exact match misses every one of them, so offline launches and
+     offline challenge links were falling through to the network and failing.
+     Only navigations get this treatment; asset requests still match exactly. */
+  var isNavigation = e.request.mode === "navigate";
   e.respondWith(
-    caches.match(e.request).then(function (hit) { return hit || fetch(e.request); })
+    caches.match(e.request, { ignoreSearch: isNavigation })
+      .then(function (hit) { return hit || fetch(e.request); })
   );
 });

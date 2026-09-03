@@ -306,4 +306,30 @@ test("milestones survive a reload — they live in saved state", () => {
 
 delete window.goatcounter;
 
+
+// ---------- PWA attribution must not fork player state ----------
+/* start_url now carries ?src=pwa. localStorage is scoped to the ORIGIN, not the
+   URL, so a query parameter cannot create a second identity — but that is the
+   failure mode that would look fine for weeks and then show every installed
+   player as a brand new person, so it gets an explicit test. */
+test("the state key is a constant, independent of any URL", () => {
+  assert.strictEqual(C.STORE_KEY, "ballpark-state-v1");
+  assert.ok(!/[?&=]/.test(C.STORE_KEY), "state key must not embed URL data");
+});
+
+test("initPlayer is idempotent — id and source survive repeat calls", () => {
+  const st = C._state();
+  st.player = { id: "", firstDay: null, cohort: "", source: "", milestones: {} };
+  C.initPlayer();
+  const id1 = st.player.id, src1 = st.player.source;
+  assert.ok(id1, "first call must mint an id");
+  C.initPlayer(); C.initPlayer();
+  assert.strictEqual(st.player.id, id1, "a repeat launch must not mint a new player");
+  assert.strictEqual(st.player.source, src1, "acquisition source must never be overwritten");
+});
+
+test("isStandalone never throws without a matchMedia implementation", () => {
+  assert.strictEqual(typeof C.isStandalone(), "boolean");
+});
+
 console.log(`${passed} tests passed${process.exitCode ? " (with failures)" : ""}`);

@@ -147,6 +147,19 @@
      The id never leaves the device — it exists so distinct-day and streak maths
      survive a page reload, not to be transmitted. No fingerprinting, no cookies,
      nothing that identifies a person: what ships is a bucketed counter. */
+  /* Display-mode is the reliable signal, not the URL. start_url carries
+     "?src=pwa" so GoatCounter can separate the paths, but that parameter is
+     lost the moment the app navigates or rewrites history, and it is absent
+     entirely for anyone who installed before it shipped. */
+  function isStandalone() {
+    try {
+      if (window.matchMedia && matchMedia("(display-mode: standalone)").matches) return true;
+      if (window.matchMedia && matchMedia("(display-mode: fullscreen)").matches) return true;
+      if (window.matchMedia && matchMedia("(display-mode: minimal-ui)").matches) return true;
+      return navigator.standalone === true;     // iOS Safari, added to home screen
+    } catch (e) { return false; }
+  }
+
   function newPlayerId() {
     try {
       if (window.crypto && window.crypto.randomUUID) return window.crypto.randomUUID();
@@ -166,6 +179,10 @@
       var qs = new URLSearchParams(location.search);
       if (qs.get("d") !== null) return "challenge";       // a link another player shared
       if (qs.get("code") !== null) return "code";
+      /* Only reachable if someone cleared storage inside the installed app —
+         a genuine first visit cannot arrive from a PWA that isn't installed
+         yet. Named rather than left to fall through to "other". */
+      if (qs.get("src") === "pwa" || isStandalone()) return "pwa";
       var utm = (qs.get("utm_medium") || qs.get("utm_source") || "").toLowerCase();
       if (utm.indexOf("email") >= 0 || utm.indexOf("newsletter") >= 0) return "newsletter";
       if (qs.get("_hsmi") || qs.get("_hsenc") || qs.get("mc_cid")) return "newsletter";
@@ -1106,6 +1123,7 @@
     quantizeRange: quantizeRange, scoreAnswer: scoreAnswer, emojiFor: emojiFor,
     dayNumber: dayNumber, puzzleForDay: puzzleForDay, validCode: validCode,
     streakBucket: streakBucket, distinctDaysPlayed: distinctDaysPlayed,
+    initPlayer: initPlayer, isStandalone: isStandalone, STORE_KEY: STORE_KEY,
     recordDailyFinish: recordDailyFinish, once: once, newPlayerId: newPlayerId,
     _state: function () { return state; }
   };
@@ -1154,6 +1172,9 @@
     // must run before the ?code= branch below rewrites the URL, or a first-time
     // visitor's acquisition source is erased before it is ever recorded
     initPlayer();
+    // partitions every app load, so the start-rate denominator no longer mixes
+    // installed-app re-opens with genuine browser arrivals
+    track(isStandalone() ? "evt/launch/standalone" : "evt/launch/browser");
 
     // URL params: ?code= is Stripe's after-checkout return; ?d=&s= is a challenge link
     var challengeDayParam = NaN, challengeScoreParam = NaN;
