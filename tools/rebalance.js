@@ -9,7 +9,19 @@ const fs = require("node:fs");
 const path = require("node:path");
 
 const ROOT = path.join(__dirname, "..");
-const FREEZE = 4;      // days 1-4 (indices 0-3) have been served — never touch
+/* A day is frozen the moment it ships: players have answers saved against its
+   index, the archive replays it, and ?d=&s= challenge links point into it.
+   Re-dealing one rewrites history. This tool now only balances days appended
+   after the published pack, so it must be told where the new tail starts:
+     node tools/rebalance.js --from=65
+   --from must be >= the number of days already published and deployed. */
+const fromArg = (process.argv.find(function (a) { return a.indexOf("--from=") === 0; }) || "").split("=")[1];
+if (fromArg === undefined) {
+  console.error("refusing to run: pass --from=N (first day index that has NOT been published).");
+  console.error("re-dealing a published day would change questions people already answered.");
+  process.exit(1);
+}
+const FREEZE = parseInt(fromArg, 10);
 const MAX_LOOKUP = 1;  // per-day budget of know-it-or-don't questions
 
 global.window = {};

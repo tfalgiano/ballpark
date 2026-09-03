@@ -1,17 +1,35 @@
 /* Builds puzzles.js from the fact-checked content in data/verified.json.
    - applies verifier verdicts (fix / drop)
    - validates every question (bounds, margins, units, dedup)
-   - composes daily sets of 5 with category diversity, deterministically shuffled
+   - PRESERVES every day already published, then appends new days from
+     questions that have never been scheduled
    Run: node tools/assemble.js */
 "use strict";
 const fs = require("node:fs");
 const path = require("node:path");
+const vm = require("node:vm");
 
 const ROOT = path.join(__dirname, "..");
 const EPOCH = "2026-07-27";
-const MIN_MARGIN = 0.08; // answer must sit ≥8% of track span from each edge
+const MIN_MARGIN = 0.08; // answer must sit >=8% of track span from each edge
+const PER_DAY = 5;
 
 const batches = JSON.parse(fs.readFileSync(path.join(ROOT, "data", "verified.json"), "utf8"));
+
+/* The published pack is the source of truth for the schedule. Every day in it
+   has either been played already or is sitting in a service-worker cache on
+   somebody's phone, so re-dealing one would rewrite history: saved answers in
+   state.history are keyed by day index, archive replays would show different
+   questions than the player answered, and shared ?d=&s= challenge links would
+   point at a puzzle the sender never saw. Days only ever get appended. */
+function loadPublished() {
+  const p = path.join(ROOT, "puzzles.js");
+  if (!fs.existsSync(p)) return null;
+  const sandbox = { window: {} };
+  vm.createContext(sandbox);
+  vm.runInContext(fs.readFileSync(p, "utf8"), sandbox);
+  return sandbox.window.BALLPARK_DATA || null;
+}
 
 function valToPos(q, v) {
   return q.scale === "log" ? Math.log(v / q.lo) / Math.log(q.hi / q.lo) : (v - q.lo) / (q.hi - q.lo);
@@ -48,7 +66,7 @@ for (const batch of batches) {
       report.fixed++;
     }
 
-    // hard validation — anything failing is rejected, not repaired silently
+    // hard validation - anything failing is rejected, not repaired silently
     const problems = [];
     if (!(q.lo < q.hi)) problems.push("lo >= hi");
     if (q.scale === "log" && q.lo <= 0) problems.push("log scale with lo <= 0");
@@ -82,40 +100,86 @@ const thirds = [0, 0, 0];
 positions.forEach((p) => thirds[Math.min(2, Math.floor(p * 3))]++);
 console.log(`answer position spread: low ${thirds[0]} / mid ${thirds[1]} / high ${thirds[2]}`);
 
-// compose days: shuffle within category, deal one per category per day round-robin
+/* ---- freeze the published schedule ---------------------------------- */
+const published = loadPublished();
+const frozenDays = published ? published.days.slice() : [];
+const used = new Set(frozenDays.flat());
+
+if (published) {
+  // IDs are positional (category + index), so a dropped or reordered question
+  // silently shifts every later ID onto the wrong prompt. Refuse to build
+  // rather than repoint a day that people have already played.
+  const drift = [];
+  for (const id of used) {
+    const before = published.questions[id];
+    const after = questions[id];
+    if (!after) { drift.push(`${id}: no longer exists`); continue; }
+    if (before && before.prompt !== after.prompt) {
+      drift.push(`${id}: prompt changed\n      was: ${before.prompt}\n      now: ${after.prompt}`);
+    }
+  }
+  if (drift.length) {
+    console.error(`\nREFUSING TO BUILD - ${drift.length} published question id(s) drifted:\n`);
+    for (const d of drift) console.error("  - " + d);
+    console.error(
+      "\nA published day would silently change question. Append new questions to the END\n" +
+      "of a category in data/verified.json; never delete, reorder, or drop-verdict a\n" +
+      "question that is already scheduled.\n");
+    process.exit(1);
+  }
+  // carry forward anything later tooling embedded (e.g. rebalance.js tags)
+  for (const id of Object.keys(questions)) {
+    const prev = published.questions[id];
+    if (prev && prev.tag && !questions[id].tag) questions[id].tag = prev.tag;
+  }
+}
+
+/* ---- deal NEW days from questions that have never been scheduled ----- */
 const rng = mulberry32(20260727);
 const decks = Object.entries(byCat)
-  .filter(([, ids]) => ids.length > 0)
   .map(([cat, ids]) => {
-    const d = ids.slice();
+    const d = ids.filter((id) => !used.has(id));
     for (let i = d.length - 1; i > 0; i--) {
       const j = Math.floor(rng() * (i + 1));
       [d[i], d[j]] = [d[j], d[i]];
     }
     return { cat, ids: d, cursor: 0 };
-  });
+  })
+  .filter((d) => d.ids.length > 0);
 
-const days = [];
+const newDays = [];
 while (true) {
-  // pick the 5 categories with the most remaining questions (keeps sets diverse to the end)
-  const avail = decks.filter((d) => d.cursor < d.ids.length).sort((a, b) => (b.ids.length - b.cursor) - (a.ids.length - a.cursor));
-  if (avail.length < 5) break;
-  const day = avail.slice(0, 5).map((d) => d.ids[d.cursor++]);
-  // shuffle question order within the day
+  // pick the categories with the most remaining questions (keeps sets diverse to the end)
+  const avail = decks.filter((d) => d.cursor < d.ids.length)
+    .sort((a, b) => (b.ids.length - b.cursor) - (a.ids.length - a.cursor));
+  if (avail.length < PER_DAY) break;
+  const day = avail.slice(0, PER_DAY).map((d) => d.ids[d.cursor++]);
   for (let i = day.length - 1; i > 0; i--) {
     const j = Math.floor(rng() * (i + 1));
     [day[i], day[j]] = [day[j], day[i]];
   }
-  days.push(day);
+  newDays.push(day);
+}
+
+const days = frozenDays.concat(newDays);
+
+// sanity: no question may appear on two different days
+const allIds = days.flat();
+if (new Set(allIds).size !== allIds.length) {
+  console.error("REFUSING TO BUILD - a question is scheduled on more than one day");
+  process.exit(1);
 }
 
 const out =
-  `/* Ballpark content pack — generated by tools/assemble.js. Do not hand-edit.\n` +
+  `/* Ballpark content pack - generated by tools/assemble.js. Do not hand-edit.\n` +
   `   ${report.kept} verified questions · ${days.length} days of puzzles. */\n` +
   `window.BALLPARK_DATA = ${JSON.stringify({ epoch: EPOCH, questions, days }, null, 1)};\n`;
 fs.writeFileSync(path.join(ROOT, "puzzles.js"), out);
 
-console.log(`kept ${report.kept} (${report.fixed} fixed), dropped ${report.dropped}, days ${days.length}`);
+const spare = report.kept - allIds.length;
+console.log(`kept ${report.kept} (${report.fixed} fixed), dropped ${report.dropped}`);
+console.log(`days: ${frozenDays.length} frozen + ${newDays.length} new = ${days.length}`);
+console.log(`${spare} question(s) banked but unscheduled (need ${PER_DAY} across 5 categories to form a day)`);
 if (report.rejected.length) {
   console.log("\nrejected:");
   for (const [p, why] of report.rejected) console.log(`  - ${p}\n      ${why}`);
