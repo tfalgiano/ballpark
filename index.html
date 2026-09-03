@@ -50,6 +50,11 @@
   <div class="toast" id="toast" role="status" aria-live="polite"></div>
 </div>
 
+<!-- Pro store is closed (2026-09-03) — every feature it gated is free. Nothing
+     reads these; they are kept so the live Stripe link and its price stay
+     recorded in one place if the store ever reopens. Leave the Stripe payment
+     link ACTIVE: issued codes still redeem via ?code=, and a deactivated link
+     would 404 anyone following an old email. -->
 <script>
 window.BALLPARK_PRO_URL = "https://buy.stripe.com/8x2aEQ51ldXo8EL7vYbo402";
 window.BALLPARK_PRO_PRICE = "$6.99";

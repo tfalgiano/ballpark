@@ -10,7 +10,6 @@
   var MIN_GAP = 0.02;          // minimum handle separation, in track space
   var NARROW_W = 0.25;         // hit at or under this width earns a green square
   var STORE_KEY = "ballpark-state-v1";
-  var FREE_PRACTICE_PER_DAY = 3;
 
   // ---------- state ----------
   function defaultState() {
@@ -651,16 +650,12 @@
     var shareBtn = el("button", "btn btn-primary", "Challenge a friend");
     var statsBtn = el("button", "btn", "My stats");
     var practiceBtn = el("button", "btn btn-ghost",
-      state.pro ? "Practice round" :
-      practiceLeft() > 0 ? "Practice round (" + practiceLeft() + " free today)" : "Practice — unlimited with Pro");
-    var archiveBtn = el("button", "btn btn-ghost",
-      "Play the archive" + (state.pro ? "" : ' <span class="badge-pro">PRO</span>'));
+      "Practice round");
+    var archiveBtn = el("button", "btn btn-ghost", "Play the archive");
     actions.appendChild(shareBtn); actions.appendChild(statsBtn);
     actions.appendChild(practiceBtn); actions.appendChild(archiveBtn);
     screen.appendChild(actions);
-    archiveBtn.addEventListener("click", function () {
-      if (state.pro) openArchive(); else openPro("archive");
-    });
+    archiveBtn.addEventListener("click", openArchive);
 
     // launch-day only: point our own players at the Product Hunt page (auto-expires)
     var today = new Date();
@@ -675,11 +670,6 @@
 
     var cd = el("div", "countdown");
     screen.appendChild(cd);
-    if (!state.pro) {
-      var proTease = el("button", "linklike", "Can't wait for tomorrow? Practice is unlimited with Pro");
-      proTease.addEventListener("click", function () { openPro("summary"); });
-      screen.appendChild(proTease);
-    }
     function tickCd() {
       // the moment the local day flips, the countdown becomes the play button
       if (dayNumber() !== n) {
@@ -722,12 +712,6 @@
   }
 
   // ---------- practice ----------
-  function practiceLeft() {
-    // quota keys off the same local game-day as the puzzle and countdown
-    var today = String(dayNumber());
-    if (state.practice.date !== today) return FREE_PRACTICE_PER_DAY;
-    return Math.max(0, FREE_PRACTICE_PER_DAY - state.practice.used);
-  }
   function shuffled(arr) {
     var a = arr.slice();
     for (var k = a.length - 1; k > 0; k--) {
@@ -737,7 +721,6 @@
     return a;
   }
   function startPractice() {
-    if (!state.pro && practiceLeft() <= 0) { openPro("practice"); return; }
     summaryDay = null;
 
     // never serve the upcoming two weeks of dailies — practice must not spoil them
@@ -757,7 +740,8 @@
     runSession({
       qids: qids,
       onAnswer: function (idx) {
-        // a round only counts once the player actually answers something
+        // practice is unlimited; the counter survives only so state.practice.seen
+        // keeps steering later rounds toward questions this player hasn't met
         if (consumed) return;
         consumed = true;
         var today = String(dayNumber());
@@ -775,9 +759,7 @@
         screen.appendChild(el("div", "summary-grid", answers.map(emojiFor).join("")));
         screen.appendChild(el("div", "summary-label", hits + " of 5 trapped"));
         var actions = el("div", "action-row");
-        var again = el("button", "btn btn-primary",
-          state.pro ? "Another round" :
-          practiceLeft() > 0 ? "Another round (" + practiceLeft() + " free left)" : "More practice — get Pro");
+        var again = el("button", "btn btn-primary", "Another round");
         var back = el("button", "btn btn-ghost", "Back to today");
         actions.appendChild(again); actions.appendChild(back);
         screen.appendChild(actions);
@@ -926,7 +908,7 @@
       hist.appendChild(xa);
       m.appendChild(hist);
 
-      // category breakdown — the Pro tease
+      // category breakdown — where your gut is sharp and where it lies to you
       var cats = {};
       allAnswers.forEach(function (a) {
         var q = DATA.questions[a.qid];
@@ -936,74 +918,24 @@
         cats[c].n++; if (a.hit) cats[c].hit++;
       });
       var catBlock = el("div", "chart-block");
-      catBlock.appendChild(el("div", "chart-title", 'By category <span class="badge-pro">PRO</span>'));
-      if (state.pro) {
-        Object.keys(cats).sort().forEach(function (c) {
-          var row = el("div", "chart-sub",
-            esc(c) + " — " + Math.round(100 * cats[c].hit / cats[c].n) + "% over " + cats[c].n);
-          catBlock.appendChild(row);
-        });
-        if (!Object.keys(cats).length) catBlock.appendChild(el("div", "chart-sub", "Play a few days to build this up."));
-      } else {
-        catBlock.appendChild(el("div", "chart-sub", "See where your gut is sharp and where it lies to you. Unlock with Ballpark Pro."));
-        var pb = el("button", "btn", "About Pro");
-        pb.style.width = "100%";
-        pb.addEventListener("click", openPro);
-        catBlock.appendChild(pb);
-      }
+      catBlock.appendChild(el("div", "chart-title", "By category"));
+      Object.keys(cats).sort().forEach(function (c) {
+        var row = el("div", "chart-sub",
+          esc(c) + " — " + Math.round(100 * cats[c].hit / cats[c].n) + "% over " + cats[c].n);
+        catBlock.appendChild(row);
+      });
+      if (!Object.keys(cats).length) catBlock.appendChild(el("div", "chart-sub", "Play a few days to build this up."));
       m.appendChild(catBlock);
     });
   }
 
-  function openPro(ctx) {
-    track("event/pro-view" + (typeof ctx === "string" ? "-" + ctx : ""));
-    openModal(function (m) {
-      m.appendChild(el("h2", "", "Ballpark Pro"));
-      m.appendChild(el("div", "modal-sub",
-        ctx === "practice" ? "You've played today's " + FREE_PRACTICE_PER_DAY + " free practice rounds." :
-        ctx === "archive" ? "The archive is a Pro perk." : "One coffee. Forever sharp."));
-      var card = el("div", "pro-card");
-      card.appendChild(el("h3", "", "Everything in free, plus:"));
-      var price = window.BALLPARK_PRO_PRICE || "$14";
-      var ul = el("ul");
-      ["Unlimited practice rounds", "The full archive — replay every past ballpark",
-       "Category breakdown — find your blind spots", "One-time " + price + " — support an indie daily game"].forEach(function (li) {
-        ul.appendChild(el("li", "", li));
-      });
-      card.appendChild(ul);
-      var buy = el("a");
-      buy.className = "btn btn-primary";
-      buy.style.display = "block"; buy.style.textAlign = "center"; buy.style.textDecoration = "none";
-      if (window.BALLPARK_PRO_WAS) {
-        buy.innerHTML = "Get Pro — <s>" + esc(window.BALLPARK_PRO_WAS) + "</s> " + esc(price) + " launch price";
-      } else {
-        buy.textContent = "Get Pro — " + price + " once";
-      }
-      buy.href = window.BALLPARK_PRO_URL || "#";
-      if (!window.BALLPARK_PRO_URL) {
-        buy.addEventListener("click", function (ev) { ev.preventDefault(); toast("Checkout opens at launch — codes work now"); });
-      } else {
-        buy.addEventListener("click", function () { track("event/pro-checkout-click"); });
-      }
-      card.appendChild(buy);
-      card.appendChild(el("div", "pro-note", "Unlocks instantly after checkout — you'll come right back here."));
-      var row = el("div", "pro-code-row");
-      var input = el("input");
-      input.placeholder = "Have a code? BP-XXXX-XXXX";
-      input.setAttribute("aria-label", "Pro unlock code");
-      var redeem = el("button", "btn", "Redeem");
-      row.appendChild(input); row.appendChild(redeem);
-      card.appendChild(row);
-      redeem.addEventListener("click", function () {
-        if (validCode(input.value.trim().toUpperCase())) {
-          state.pro = true; saveState(); track("event/pro-unlocked"); closeModal(); toast("Pro unlocked. Welcome to the shop.");
-        } else {
-          toast("That code doesn't measure up");
-        }
-      });
-      m.appendChild(card);
-    });
-  }
+  /* The Pro store is closed. Archive, practice and the category breakdown are
+     free for everyone. The payment path is intentionally left intact and
+     dormant: validCode(), the ?code= redemption below, tools/make-code.js and
+     the Stripe link in index.html all still work, so the handful of issued
+     codes keep resolving and reopening a store is a UI change, not a rebuild.
+     state.pro is still written by redemption and still fires pro-unlocked so
+     the analytics series stays continuous — nothing reads it to gate a feature. */
 
   // Simple checksum gate for launch-week codes (see tools/make-code.js).
   function validCode(code) {
@@ -1082,7 +1014,9 @@
         params.delete("code");
         var rest = params.toString();
         history.replaceState(null, "", location.pathname + (rest ? "?" + rest : ""));
-        setTimeout(function () { toast("Pro unlocked — thanks for backing Ballpark ⚡"); }, 600);
+        // everything a code used to unlock is free now, so thank them rather
+        // than announce an unlock they already had
+        setTimeout(function () { toast("Thanks for backing Ballpark ⚡"); }, 600);
       }
     } catch (e) {}
 

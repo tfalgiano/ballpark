@@ -152,4 +152,59 @@ test("no question repeats across consecutive-day pairs", () => {
   }
 });
 
+
+// ---------- published-schedule immutability ----------
+/* A published day has been played, sits in service-worker caches, and is
+   addressed by index from state.history, the archive and ?d= challenge links.
+   Re-dealing one silently repoints all three at different questions, so the
+   schedule is frozen in tests/published-schedule.json and diffed here. */
+const crypto = require("node:crypto");
+const FROZEN = require("./published-schedule.json");
+const hashPrompt = (s) => crypto.createHash("sha256").update(s, "utf8").digest("hex").slice(0, 12);
+
+test("epoch never moves", () => {
+  assert.strictEqual(DATA.epoch, FROZEN.epoch, "epoch changed - every past day would shift");
+});
+test("published days are never re-dealt", () => {
+  assert.ok(DATA.days.length >= FROZEN.days.length,
+    `pack shrank from ${FROZEN.days.length} to ${DATA.days.length} days`);
+  for (let i = 0; i < FROZEN.days.length; i++) {
+    assert.deepStrictEqual(DATA.days[i], FROZEN.days[i],
+      `day index ${i} (puzzle #${i + 1}) changed
+      was: ${FROZEN.days[i].join(", ")}
+      now: ${(DATA.days[i] || []).join(", ")}`);
+  }
+});
+test("published questions never change text", () => {
+  for (const [id, want] of Object.entries(FROZEN.promptHashes)) {
+    const q = DATA.questions[id];
+    assert.ok(q, `${id} was scheduled on a published day but no longer exists`);
+    assert.strictEqual(hashPrompt(q.prompt), want,
+      `${id} prompt changed after publication: "${q.prompt}"`);
+  }
+});
+test("appended days reuse no published question", () => {
+  const published = new Set(FROZEN.days.flat());
+  for (let i = FROZEN.days.length; i < DATA.days.length; i++) {
+    for (const id of DATA.days[i]) {
+      assert.ok(!published.has(id), `day ${i} reuses already-published question ${id}`);
+    }
+  }
+});
+
+// ---------- content runway alarm ----------
+/* The schedule wraps with a modulo, so running out is silent: day N returns
+   puzzle #1 wearing a new number. This test is the alarm that the cliff is
+   approaching - if it fails, write questions. */
+test("at least 21 days of unplayed content remain", () => {
+  const now = new Date();
+  const [y, m, d] = FROZEN.epoch.split("-").map(Number);
+  const today = Math.floor((Date.UTC(now.getFullYear(), now.getMonth(), now.getDate())
+    - Date.UTC(y, m - 1, d)) / 864e5);
+  const remaining = DATA.days.length - today - 1;
+  assert.ok(remaining >= 21,
+    `only ${remaining} day(s) of content left (today is puzzle #${today + 1} of ${DATA.days.length}). ` +
+    `On day ${DATA.days.length} the schedule wraps to puzzle #1 and every player replays it.`);
+});
+
 console.log(`${passed} tests passed${process.exitCode ? " (with failures)" : ""}`);

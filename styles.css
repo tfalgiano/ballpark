@@ -279,14 +279,6 @@ button { font-family: inherit; cursor: pointer; }
 .ph-banner:hover { border-style: solid; }
 
 /* quiet inline action */
-.linklike {
-  background: none; border: none;
-  color: var(--graphite); font-size: 0.85rem;
-  text-decoration: underline; text-underline-offset: 3px;
-  margin-top: 10px; padding: 6px;
-}
-.linklike:hover { color: var(--ink); }
-.pro-note { font-size: 0.78rem; color: var(--graphite); margin-top: 8px; text-align: center; }
 
 /* ---------- the tape slider (signature element) ---------- */
 .tape-wrap { padding: 30px 10px 6px; }
@@ -532,32 +524,6 @@ button { font-family: inherit; cursor: pointer; }
 .hist-x span { flex: 1; text-align: center; }
 
 /* ---------- practice & pro ---------- */
-.pro-card {
-  border: 2.5px solid var(--ink); border-radius: var(--radius);
-  background: var(--surface); box-shadow: var(--shadow);
-  padding: 20px; margin-top: 10px;
-}
-.pro-card h3 { font-size: 1.1rem; margin-bottom: 6px; }
-.pro-card ul { list-style: none; margin: 10px 0 16px; }
-.pro-card li { padding: 5px 0 5px 26px; position: relative; font-size: 0.92rem; }
-.pro-card li::before {
-  content: "["; position: absolute; left: 4px;
-  font-family: var(--mono); color: var(--tape-deep); font-weight: 800;
-}
-.pro-code-row { display: flex; gap: 8px; margin-top: 12px; }
-.pro-code-row input {
-  flex: 1; font-family: var(--mono);
-  font-size: 16px; /* under 16px triggers iOS Safari auto-zoom on focus */
-  padding: 10px 12px; border: 2px solid var(--faint); border-radius: 10px;
-  background: var(--paper); color: var(--ink);
-  min-width: 0;
-}
-.badge-pro {
-  font-family: var(--mono); font-size: 0.62rem; font-weight: 800;
-  background: var(--ink); color: var(--tape);
-  padding: 2px 6px; border-radius: 4px; letter-spacing: 0.1em;
-  vertical-align: middle;
-}
 
 /* ---------- toast ---------- */
 .toast {

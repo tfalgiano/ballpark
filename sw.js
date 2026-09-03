@@ -1,6 +1,6 @@
 /* Ballpark service worker — cache-first app shell, network-first for puzzles.js
    so content updates land without a version bump. Bump VERSION on deploy. */
-var VERSION = "ballpark-v1.1.5";
+var VERSION = "ballpark-v1.2.0";
 var SHELL = ["./", "index.html", "styles.css", "app.js", "puzzles.js", "manifest.webmanifest", "icon.svg", "count.js", "og.png"];
 
 self.addEventListener("install", function (e) {
