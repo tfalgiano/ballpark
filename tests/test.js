@@ -207,4 +207,103 @@ test("at least 21 days of unplayed content remain", () => {
     `On day ${DATA.days.length} the schedule wraps to puzzle #1 and every player replays it.`);
 });
 
+
+// ---------- unique-player instrumentation ----------
+/* The whole value of the uniq/ namespace is that its counts are HEADCOUNTS.
+   These tests defend that property: a milestone must never fire twice on one
+   browser, however many puzzles that browser finishes. */
+const fired = [];
+window.goatcounter = { count: (o) => fired.push(o.path) };
+const st = C._state();
+function resetPlayer(source) {
+  fired.length = 0;
+  st.history = {}; st.maxStreak = 0;
+  st.player = { id: "test", firstDay: null, cohort: "", source: source || "newsletter", milestones: {} };
+}
+function playDays(indices) {
+  for (const d of indices) {
+    st.history[d] = { done: true, answers: [], score: 300 };
+    let streak = 0, k = d;
+    while (st.history[k] && st.history[k].done) { streak++; k--; }
+    if (streak > st.maxStreak) st.maxStreak = streak;
+    C.recordDailyFinish(d, streak);
+  }
+}
+
+test("streak buckets are stable and total", () => {
+  const got = [0,1,2,3,4,5,7,8,14,15,30,31,900].map(C.streakBucket);
+  assert.deepStrictEqual(got, ["1","1","2","3-4","3-4","5-7","5-7","8-14","8-14","15-30","15-30","31plus","31plus"]);
+});
+
+test("first-finish fires exactly once no matter how much you play", () => {
+  resetPlayer();
+  playDays([10,11,12,13,14,15,16,17,18,19,20]);
+  const n = fired.filter((p) => p === "uniq/player-first-finish").length;
+  assert.strictEqual(n, 1, `fired ${n} times — this metric would overcount people`);
+});
+
+test("every uniq/ path fires at most once per browser", () => {
+  resetPlayer();
+  playDays([0,1,2,3,4,5,6,7,8,9,10,11,12,13,14]);
+  const counts = {};
+  for (const p of fired) if (p.startsWith("uniq/")) counts[p] = (counts[p] || 0) + 1;
+  const repeats = Object.entries(counts).filter(([, n]) => n > 1);
+  assert.strictEqual(repeats.length, 0, `repeated: ${JSON.stringify(repeats)}`);
+});
+
+test("evt/ paths DO repeat — they are event counts by design", () => {
+  resetPlayer();
+  playDays([0,1,2,3]);
+  const evts = fired.filter((p) => p.startsWith("evt/finish-streak/"));
+  assert.strictEqual(evts.length, 4, "one streak event per finish");
+});
+
+test("day milestones need DISTINCT days, not a long streak", () => {
+  resetPlayer();
+  playDays([5]);
+  assert.ok(!fired.includes("uniq/days-played-2"), "one day cannot reach the 2-day milestone");
+  playDays([6]);
+  assert.ok(fired.includes("uniq/days-played-2"));
+});
+
+test("retention windows measure age since first play, not streak length", () => {
+  resetPlayer();
+  playDays([100]);            // first ever play
+  assert.ok(!fired.includes("uniq/retained-d7"), "day one is not d7 retention");
+  playDays([108]);            // came back 8 days later, streak broken
+  assert.ok(fired.includes("uniq/retained-d7"), "a returner after 8 days IS d7-retained");
+  assert.ok(!fired.includes("uniq/retained-d14"), "but not yet d14");
+});
+
+test("a gappy player still counts as retained (the old metric missed these)", () => {
+  resetPlayer();
+  playDays([200, 202, 204, 208]);   // never two consecutive days
+  assert.strictEqual(st.maxStreak, 1, "no streak at all");
+  assert.ok(fired.includes("uniq/retained-d7"), "event/returning-player would have scored this loyal player as zero");
+  assert.ok(fired.includes("uniq/days-played-3"));
+});
+
+test("cohort and source tag the first finish and never change", () => {
+  resetPlayer("reddit");
+  playDays([15, 16, 30]);
+  assert.ok(fired.includes("uniq/cohort/w2/new"), "day 15 is week 2");
+  assert.ok(fired.includes("uniq/source/reddit/new"));
+  assert.ok(fired.includes("uniq/source/reddit/d14"), "source must tag retention, not just arrival");
+  assert.strictEqual(st.player.cohort, "w2");
+  assert.strictEqual(fired.filter((p) => p.startsWith("uniq/cohort/") && p.endsWith("/new")).length, 1);
+});
+
+test("milestones survive a reload — they live in saved state", () => {
+  resetPlayer();
+  playDays([50, 51]);
+  const before = fired.length;
+  const saved = JSON.parse(JSON.stringify(st.player));
+  st.player = saved;                 // simulate reload from localStorage
+  playDays([52]);
+  assert.ok(!fired.slice(before).includes("uniq/player-first-finish"), "reload must not re-fire first-finish");
+  assert.ok(!fired.slice(before).includes("uniq/days-played-2"), "reload must not re-fire an earned milestone");
+});
+
+delete window.goatcounter;
+
 console.log(`${passed} tests passed${process.exitCode ? " (with failures)" : ""}`);

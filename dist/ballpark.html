@@ -5331,7 +5331,13 @@ window.BALLPARK_DATA = {
 
   // ---------- state ----------
   function defaultState() {
-    return { v: 1, seenTutorial: false, pro: false, history: {}, archive: {}, maxStreak: 0, practice: { date: "", used: 0 } };
+    // `player` is additive: loadState() fills any key missing from saved state
+    // from these defaults, so existing players pick it up with no migration.
+    return {
+      v: 1, seenTutorial: false, pro: false, history: {}, archive: {}, maxStreak: 0,
+      practice: { date: "", used: 0 },
+      player: { id: "", firstDay: null, cohort: "", source: "", milestones: {} }
+    };
   }
   function loadState() {
     var d = defaultState();
@@ -5342,6 +5348,8 @@ window.BALLPARK_DATA = {
         var merged = {};
         for (var k in d) merged[k] = s[k] !== undefined ? s[k] : d[k];
         merged.practice = s.practice && typeof s.practice === "object" ? s.practice : d.practice;
+        merged.player = s.player && typeof s.player === "object" ? s.player : d.player;
+        if (!merged.player.milestones || typeof merged.player.milestones !== "object") merged.player.milestones = {};
         merged.history = s.history && typeof s.history === "object" ? s.history : d.history;
         merged.archive = s.archive && typeof s.archive === "object" ? s.archive : d.archive;
         return merged;
@@ -5441,6 +5449,135 @@ window.BALLPARK_DATA = {
     var d = state.history[n] && state.history[n].done ? n : n - 1;
     while (d >= 0 && state.history[d] && state.history[d].done) { streak++; d--; }
     return streak;
+  }
+
+  /* ---------- anonymous player identity ----------
+     GoatCounter counts paths; it cannot count people. So uniqueness is produced
+     on the device instead: a milestone fires AT MOST ONCE per browser, ever, and
+     the resulting count is therefore a headcount rather than an event tally.
+
+     Naming is the contract, because reading an event count as a headcount is the
+     exact mistake that made us believe we had 333 loyal players when the honest
+     range was 9 to 337:
+       evt/...   something happened. Repeats. Never a number of people.
+       uniq/...  fires once per browser for all time. The count IS people.
+
+     The id never leaves the device — it exists so distinct-day and streak maths
+     survive a page reload, not to be transmitted. No fingerprinting, no cookies,
+     nothing that identifies a person: what ships is a bucketed counter. */
+  function newPlayerId() {
+    try {
+      if (window.crypto && window.crypto.randomUUID) return window.crypto.randomUUID();
+      if (window.crypto && window.crypto.getRandomValues) {
+        var b = new Uint8Array(16);
+        window.crypto.getRandomValues(b);
+        return Array.prototype.map.call(b, function (x) { return ("0" + x.toString(16)).slice(-2); }).join("");
+      }
+    } catch (e) {}
+    return "p" + String(Date.now()) + String(Math.floor(Math.random() * 1e9));
+  }
+
+  // Coarse buckets only — never a raw referrer or query string, so no URL a
+  // player arrived on can ever be reconstructed from the analytics.
+  function acquisitionSource() {
+    try {
+      var qs = new URLSearchParams(location.search);
+      if (qs.get("d") !== null) return "challenge";       // a link another player shared
+      if (qs.get("code") !== null) return "code";
+      var utm = (qs.get("utm_medium") || qs.get("utm_source") || "").toLowerCase();
+      if (utm.indexOf("email") >= 0 || utm.indexOf("newsletter") >= 0) return "newsletter";
+      if (qs.get("_hsmi") || qs.get("_hsenc") || qs.get("mc_cid")) return "newsletter";
+      var r = document.referrer || "";
+      if (!r) return "direct";
+      var host = "";
+      try { host = new URL(r).hostname.toLowerCase().replace(/^www\./, ""); } catch (e2) { return "other"; }
+      if (host === location.hostname.toLowerCase().replace(/^www\./, "")) return "direct";
+      if (/thehustle|cenital|substack|beehiiv|mailchi|convertkit|ghost\.io/.test(host)) return "newsletter";
+      if (/reddit/.test(host)) return "reddit";
+      if (/producthunt/.test(host)) return "producthunt";
+      if (/google|bing|duckduckgo|ecosia|yahoo|brave/.test(host)) return "search";
+      if (/twitter|^x\.com|facebook|linkedin|instagram|tiktok|mastodon|bsky/.test(host)) return "social";
+      if (/itch\.io/.test(host)) return "itch";
+      return "other";
+    } catch (e) { return "other"; }
+  }
+
+  function initPlayer() {
+    var p = state.player;
+    if (!p.id) {
+      p.id = newPlayerId();
+      p.source = acquisitionSource();   // captured on the FIRST visit and never overwritten
+      saveState();
+    }
+  }
+
+  // fires `path` at most once per browser, for all time
+  function once(path) {
+    var m = state.player.milestones;
+    if (m[path]) return false;
+    m[path] = 1;
+    saveState();
+    track(path);
+    return true;
+  }
+
+  function distinctDaysPlayed() {
+    var n = 0;
+    for (var k in state.history) if (state.history[k] && state.history[k].done) n++;
+    return n;
+  }
+
+  var DAY_MILESTONES = [2, 3, 5, 7, 14, 30, 60, 100];
+  var STREAK_MILESTONES = [3, 7, 14, 30];
+  var RETURN_WINDOWS = [1, 3, 7, 14, 30];
+
+  function streakBucket(s) {
+    if (s <= 1) return "1";
+    if (s === 2) return "2";
+    if (s <= 4) return "3-4";
+    if (s <= 7) return "5-7";
+    if (s <= 14) return "8-14";
+    if (s <= 30) return "15-30";
+    return "31plus";
+  }
+
+  /* Called once per completed daily. Everything here is derived from local
+     state; the only thing that leaves the browser is a bucketed path. */
+  function recordDailyFinish(dayIdx, streak) {
+    var p = state.player;
+    if (p.firstDay === null || p.firstDay === undefined) {
+      p.firstDay = dayIdx;
+      p.cohort = "w" + Math.floor(dayIdx / 7);   // weeks since launch; wide enough to never single anyone out
+      saveState();
+      once("uniq/player-first-finish");
+      once("uniq/cohort/" + p.cohort + "/new");
+      once("uniq/source/" + (p.source || "unknown") + "/new");
+    }
+
+    // distribution of streaks across today's finishers — an EVENT, by design:
+    // it must be re-counted every day, so it can never be read as a headcount
+    track("evt/finish-streak/" + streakBucket(streak));
+
+    var days = distinctDaysPlayed();
+    for (var i = 0; i < DAY_MILESTONES.length; i++) {
+      if (days >= DAY_MILESTONES[i]) once("uniq/days-played-" + DAY_MILESTONES[i]);
+    }
+    for (var j = 0; j < STREAK_MILESTONES.length; j++) {
+      if (state.maxStreak >= STREAK_MILESTONES[j]) once("uniq/best-streak-" + STREAK_MILESTONES[j]);
+    }
+
+    // true cohort retention: still finishing puzzles N days after the first one.
+    // Tagged by cohort and by where the player came from, so we can finally ask
+    // whether a given traffic source produced habits or just clicks.
+    var age = dayIdx - p.firstDay;
+    for (var k = 0; k < RETURN_WINDOWS.length; k++) {
+      var w = RETURN_WINDOWS[k];
+      if (age >= w) {
+        once("uniq/retained-d" + w);
+        once("uniq/cohort/" + p.cohort + "/d" + w);
+        once("uniq/source/" + (p.source || "unknown") + "/d" + w);
+      }
+    }
   }
 
   // ---------- DOM helpers ----------
@@ -5763,8 +5900,11 @@ window.BALLPARK_DATA = {
         if (streak > state.maxStreak) state.maxStreak = streak;
         saveState();
         track("event/finished-daily");
-        // privacy-safe D1 signal: a finisher on a streak is, by definition, a returner
+        /* Kept firing so the series stays continuous back to launch, but read it
+           as what it is: one event per finish on a streak, NOT a count of people.
+           uniq/retained-d* below is the honest version. */
         if (streak >= 2) track("event/returning-player");
+        recordDailyFinish(n, streak);
         // a finished game is worth protecting: ask the browser not to evict
         // this site's storage (guards streaks and the Pro flag)
         if (navigator.storage && navigator.storage.persist) navigator.storage.persist().catch(function () {});
@@ -6276,7 +6416,10 @@ window.BALLPARK_DATA = {
   window.BALLPARK_CORE = {
     posToVal: posToVal, valToPos: valToPos, snapVal: snapVal, fmtVal: fmtVal,
     quantizeRange: quantizeRange, scoreAnswer: scoreAnswer, emojiFor: emojiFor,
-    dayNumber: dayNumber, puzzleForDay: puzzleForDay, validCode: validCode
+    dayNumber: dayNumber, puzzleForDay: puzzleForDay, validCode: validCode,
+    streakBucket: streakBucket, distinctDaysPlayed: distinctDaysPlayed,
+    recordDailyFinish: recordDailyFinish, once: once, newPlayerId: newPlayerId,
+    _state: function () { return state; }
   };
 
   // ---------- boot ----------
@@ -6319,6 +6462,10 @@ window.BALLPARK_DATA = {
     }
     window.addEventListener("error", function (ev) { reportError("err", ev); });
     window.addEventListener("unhandledrejection", function (ev) { reportError("rej", ev); });
+
+    // must run before the ?code= branch below rewrites the URL, or a first-time
+    // visitor's acquisition source is erased before it is ever recorded
+    initPlayer();
 
     // URL params: ?code= is Stripe's after-checkout return; ?d=&s= is a challenge link
     var challengeDayParam = NaN, challengeScoreParam = NaN;
