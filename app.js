@@ -725,7 +725,8 @@
     var grid = rec.answers.map(emojiFor).join("");
     var hits = rec.answers.filter(function (a) { return a.hit; }).length;
     var streak = currentStreak();
-    return "Halfsure #" + (n + 1) + " — " + rec.score + "/500" + (hits === rec.answers.length ? " 🎯" : "") +
+    return "Halfsure #" + (n + 1) + " — " + rec.score + "/500" +
+      (rec.answers.length && hits === rec.answers.length ? " 🎯" : "") +
       "\n" + grid + (streak > 1 ? "  🔥" + streak : "");
   }
   // one share path for daily and archive: native sheet on touch, clipboard on desktop

@@ -390,11 +390,16 @@ test("a returning player does not re-fire first-finish after the rebrand", () =>
   st.history = {}; st.player.milestones = {};
 });
 
-test("a perfect-day label cannot claim perfection on an empty day", () => {
-  // 0 === 0 is true; a migrated day with no answers must not read as perfect
+test("neither perfect-day claim survives an empty day", () => {
+  /* 0 === 0 is true, so a day with no answers reads as a perfect round. There
+     are TWO sites: the summary label and shareGrid(). The share one is worse —
+     it puts a false perfect-round claim into a message sent to other people.
+     Asserting a count rather than presence, because a test that passed on one
+     of two instances is exactly how the second one survived the first pass. */
   const src = require("node:fs").readFileSync(path.join(__dirname, "..", "app.js"), "utf8");
-  assert.ok(/rec.answers.length && hits === rec.answers.length/.test(src),
-    "the perfect-day label is unguarded: an empty answers array reads as a perfect round");
+  const guards = (src.match(/rec\.answers\.length && hits === rec\.answers\.length/g) || []).length;
+  assert.strictEqual(guards, 2,
+    `expected both perfect-day comparisons guarded (summary label AND share text), found ${guards}`);
 });
 
 console.log(`${passed} tests passed${process.exitCode ? " (with failures)" : ""}`);
