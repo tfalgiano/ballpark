@@ -123,6 +123,46 @@ looking crowded. Neither is a content shortage.
 
 ---
 
+## Tenaza as a replacement name — REJECTED
+
+Not parked. Rejected, with reasons recorded so it is not reconsidered in six
+months without new evidence.
+
+Tenaza (Spanish for pincer — two jaws closing on a value) won naming round one.
+It won on a brief **I wrote** that made Spanish/English bilingual performance a
+near-requirement, which the evidence never supported: one Argentine newsletter
+produced 192 puzzle starts and **zero returning-player events, lifetime**. When
+that credit was withdrawn the name fell from 1st to 18th, 570 to 450.
+
+**Why it fails on English merits alone:**
+
+- **The metaphor is inaccessible without a footnote.** A monolingual English
+  speaker cannot derive "pincers" from "Tenaza" by inspection, cognate or guess.
+  The Latin *tenax* root linking it to "tenacious" is invisible unless taught.
+  The whole conceptual case was load-bearing on the credit that was withdrawn.
+- **It recreates the exact problem we are escaping.** Searching the correctly
+  spelled "Tenaza app" returns **Tenaz** at position one — an 18+ crypto app with
+  ~144,000 users that now contains a game — then Tanaza (Wi-Fi SaaS), Tanza, a
+  perennial shrub, and hair-curling tongs. "Tenaza game" returns **Tenzi**, a
+  competing dice game, with no Tenaza result on the page.
+- **It regresses on the one axis where Ballpark actually wins.** "Ballpark" is
+  unambiguously spellable the moment you hear it. Tenaza yields six plausible
+  spellings from one hearing (Tenaza, Tanaza, Tenasa, Tenazza, Tennaza, Tinaza),
+  two of which are live companies positioned to absorb the traffic.
+- **It does not read as a game.** Across ~30 results from five queries, not one
+  was a game; the word's commercial identity is Spanish seafood restaurants,
+  because *tenaza* also means crab claw.
+
+**The one real asset, recorded honestly:** the exact string is genuinely unowned
+in tech and games, and a site could rank first for it within weeks. But that is
+gated entirely behind correct spelling, and the gate is where the name breaks. An
+empty results page you cannot route anyone to is not a distribution advantage.
+
+**Reopen only if:** Spanish-speaking players become a demonstrated retained
+cohort AND the Tenaz/Tanaza/Tenzi search occupation clears. Both, not either.
+
+---
+
 ## Also parked, without further investigation
 
 Ads · subscriptions · accounts and login · native apps · leaderboards ·
