@@ -156,3 +156,121 @@ treatment as the schedule: assume it looks fine once and breaks later.
 Every one of these is a case where the failure is silent and the loss is
 permanent, which is exactly the profile of the two bugs already caught this week
 by running the build twice.
+
+---
+
+# Phase 2, made concrete
+
+Everything above this line was the shape of the plan. This is the part that has
+to be testable before it is written.
+
+## The payload, sized against the real state
+
+Measured with the actual `defaultState()` shape and real question ids:
+
+| Days played | Full state | Base64 in a fragment |
+|---|---|---|
+| 7 | 2.9 KB | ~3.9 KB |
+| 30 | 11.4 KB | ~15.2 KB |
+| 39 — today's maximum | 14.7 KB | ~19.7 KB |
+| **174 — a year from now** | **64.8 KB** | **~86.9 KB** |
+
+A fragment comfortably carries today's worst case and **cannot carry next
+year's**. Safari's URL ceiling is around 80 KB, and several browsers truncate
+silently rather than erroring — which is the worst available failure: a partial
+payload that still parses.
+
+**So the payload is two-tier, always:**
+
+```
+core    — player{id, firstDay, cohort, source, milestones}, maxStreak,
+          and per-day {done, score}.    1.8 KB even at 174 days.
+detail  — per-answer {hit, w, pts, qid, lo, hi}, appended ONLY if the
+          encoded total stays under 32 KB.
+```
+
+The core is what continuity actually needs: streak, distinct days, cohort,
+acquisition source, and the one-shot milestones. The detail only powers the
+per-question recap when revisiting an old summary. **If detail is dropped, a
+migrated player keeps every streak, stat and milestone, and loses only the
+question-by-question breakdown of days played before the move.** That cost is
+real, bounded, and never affects a future day.
+
+Checking size *before* navigating means the migration can never fail on length.
+It degrades instead.
+
+## Threat model
+
+| Threat | Handling |
+|---|---|
+| **Tampering** — a forged payload claiming a 500-day streak | Cosmetic, on that device only. The asymmetry makes it uninteresting: adopting `milestones` marks them **already fired**, so a forged payload *suppresses* our metrics for one browser rather than inflating them. There is no way to manufacture a `uniq/` event by importing. Not worth signing. |
+| **Malformed or truncated payload** | Parse in try/catch, then validate shape: `v` present and known, `player.id` a non-empty string, `history` an object. Any failure → **do nothing** and leave existing state untouched. Never partially apply. |
+| **Oversized URL** | Size-checked before navigation, falling back to core-only. The importer rejects anything that fails to decode cleanly rather than salvaging fragments. |
+| **Replay** — the same link opened twice | Idempotent via the adoption rule below. The second run is a no-op. |
+| **Partial state** | Rejected wholesale at validation. There is no merge path; a partial payload is a corrupt payload. |
+| **Old or future schema** | Payload carries `v`. Unknown or newer → refuse and leave state alone, mirroring how `loadState()` already handles an unrecognised schema. |
+| **Interrupted migration** | **The export is a copy, never a move.** The old origin never clears its own state, so closing the tab mid-flight loses nothing and the link still works. |
+| **Safari / iOS PWA** | An installed iOS PWA has its own storage container and cannot be scripted into the browser's. Installed users must run the bridge **in the browser**, then reinstall from the new origin. This has to be said in the UI, not assumed. |
+| **Multiple tabs** | `localStorage` writes are last-wins. Re-read state immediately before writing and re-apply the adoption rule at write time; both tabs converge on the same outcome. |
+| **Playing on both domains afterwards** | Genuine split-brain, and the only unfixable case. Mitigated by policy rather than code: after the overlap window the old origin redirects *browser* traffic while standalone launches keep working. |
+
+## The adoption rule, which is the whole design
+
+On the new origin, at boot, when `#import=` is present:
+
+1. Decode and validate. Any failure → stop, touch nothing.
+2. `incoming` = count of history entries marked done.
+3. `existing` = the same, from local state.
+4. **Adopt only if `existing === 0` or `incoming > existing`.**
+5. Write, then `history.replaceState` the fragment away immediately.
+
+Step 4 is what makes replay safe, makes concurrent tabs converge, and — most
+importantly — stops a stale link from a month ago overwriting progress someone
+has since made on the new domain.
+
+Step 5 is privacy: an un-stripped fragment sits in the address bar where it can
+be copied and pasted, handing a stranger someone else's play history.
+
+## Tests that must exist before this ships
+
+1. A 12-day streak migrates and arrives as a 12-day streak.
+2. A migrated player does **not** re-fire `uniq/player-first-finish`.
+3. Cohort and acquisition source survive, so cohort retention stays continuous.
+4. **Importing twice is a no-op the second time.**
+5. A richer local state is **not** overwritten by a poorer payload.
+6. A truncated payload leaves existing state byte-identical.
+7. An unknown schema version leaves existing state byte-identical.
+8. The fragment is gone from `location` after import.
+9. Core-only mode still yields the correct streak, distinct-day count and
+   milestone set.
+10. The old origin's state is unchanged after an export.
+
+## How long must theballparkgame.com keep serving the app?
+
+**At least 24 months, and budget for indefinitely.**
+
+An installed PWA's `start_url` is bound to the origin it was installed from.
+There is no API to migrate it, no expiry, and no way to reach it except by
+serving it something. An install persists until the user removes it — which they
+have no reason to do, because from their side nothing is wrong.
+
+The population is small, bounded above by ~1,400 completed puzzles. It is also
+**the most valuable population we have**: someone who installed the app is by
+definition habitual, and habitual players are precisely what we are currently
+trying to measure. Trading them for redirect tidiness is a bad deal at any price,
+and the price here is one domain renewal — about $15 a year.
+
+| Window | Standalone launch (installed PWA) | Browser traffic |
+|---|---|---|
+| 0–3 months | Full app + dismissible "we've moved" banner with a Move button | Full app + banner |
+| 3–12 months | Full app + persistent banner | 301 to the new origin |
+| 12–24 months | Full app + persistent banner | 301 |
+| 24 months+ | **Still the full app.** Review annually. | 301 |
+| Ever | **Never a bare 301** — a redirect turns an installed app into a loop with no explanation. | — |
+
+Standalone is detected with the `isStandalone()` helper already in `app.js` for
+launch attribution. The same function that partitions the funnel decides who must
+keep being served.
+
+The old origin also honours `?d=&s=` challenge links forever. They are in
+newsletters, message threads and screenshots, and they cost nothing to keep.
