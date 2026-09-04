@@ -332,4 +332,69 @@ test("isStandalone never throws without a matchMedia implementation", () => {
   assert.strictEqual(typeof C.isStandalone(), "boolean");
 });
 
+
+// ---------- rename safety ----------
+/* The adversarial question for a rebrand: what could make it look visually
+   perfect while silently resetting or fragmenting player state? Answer: the
+   brand string and the storage key are both the word "ballpark", and they are
+   indistinguishable in a grep. Renaming the second one orphans every streak,
+   history entry, cohort and one-shot milestone in existence, and the UI would
+   look flawless while doing it. These tests exist so that can never ship. */
+
+test("the storage key is NOT the brand and must never track it", () => {
+  assert.strictEqual(C.STORE_KEY, "ballpark-state-v1",
+    "STORE_KEY changed. Every existing player just lost their streak, history, " +
+    "cohort and milestones, and the app looks completely fine. This is the single " +
+    "most destructive edit available in this codebase.");
+});
+
+test("a pre-rename saved state still loads intact", () => {
+  const st = C._state();
+  const before = {
+    id: st.player.id, cohort: st.player.cohort, source: st.player.source,
+    milestones: Object.keys(st.player.milestones).length,
+    days: C.distinctDaysPlayed(), maxStreak: st.maxStreak
+  };
+  // simulate what a returning player carries across the rebrand deploy
+  st.player.id = "pre-rename-id";
+  st.player.cohort = "w3";
+  st.player.source = "newsletter";
+  st.player.milestones = { "uniq/player-first-finish": 1, "uniq/days-played-7": 1 };
+  st.history = { 10: { done: true, score: 300, answers: [] }, 11: { done: true, score: 320, answers: [] } };
+  st.maxStreak = 2;
+  const snapshot = JSON.parse(JSON.stringify(st.player));
+  C.initPlayer();                       // the rebrand build boots
+  assert.strictEqual(st.player.id, "pre-rename-id", "boot minted a new player id");
+  assert.strictEqual(st.player.cohort, "w3", "cohort was reset");
+  assert.strictEqual(st.player.source, "newsletter", "acquisition source was overwritten");
+  assert.deepStrictEqual(st.player.milestones, snapshot.milestones, "milestones were disturbed");
+  assert.strictEqual(C.distinctDaysPlayed(), 2, "history was lost");
+  // restore
+  st.player.id = before.id; st.player.cohort = before.cohort; st.player.source = before.source;
+  st.history = {}; st.maxStreak = before.maxStreak; st.player.milestones = {};
+});
+
+test("a returning player does not re-fire first-finish after the rebrand", () => {
+  const fired2 = [];
+  window.goatcounter = { count: (o) => fired2.push(o.path) };
+  const st = C._state();
+  st.history = {}; st.maxStreak = 0;
+  st.player = { id: "veteran", firstDay: 5, cohort: "w0", source: "direct",
+    milestones: { "uniq/player-first-finish": 1, "uniq/days-played-2": 1 } };
+  st.history[20] = { done: true, score: 300, answers: [] };
+  C.recordDailyFinish(20, 1);
+  assert.ok(!fired2.includes("uniq/player-first-finish"),
+    "an existing player was counted as brand new after the rebrand");
+  assert.strictEqual(st.player.cohort, "w0", "cohort moved");
+  delete window.goatcounter;
+  st.history = {}; st.player.milestones = {};
+});
+
+test("a perfect-day label cannot claim perfection on an empty day", () => {
+  // 0 === 0 is true; a migrated day with no answers must not read as perfect
+  const src = require("node:fs").readFileSync(path.join(__dirname, "..", "app.js"), "utf8");
+  assert.ok(/rec.answers.length && hits === rec.answers.length/.test(src),
+    "the perfect-day label is unguarded: an empty answers array reads as a perfect round");
+});
+
 console.log(`${passed} tests passed${process.exitCode ? " (with failures)" : ""}`);

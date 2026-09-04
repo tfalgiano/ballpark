@@ -29,7 +29,7 @@ for ($x = 40; $x -lt $W; $x += 58) {
 # wordmark with bracket-dot mark, centered as one lock-up
 $fBig = New-Object System.Drawing.Font("Segoe UI Black", 64, [System.Drawing.FontStyle]::Bold)
 $fMono = New-Object System.Drawing.Font("Consolas", 76, [System.Drawing.FontStyle]::Bold)
-$wordSize = $g.MeasureString("BALLPARK", $fBig)
+$wordSize = $g.MeasureString("HALFSURE", $fBig)
 $markW = 200
 $lockW = $markW + $wordSize.Width
 $x0 = [int](($W - $lockW) / 2)
@@ -37,7 +37,7 @@ $y0 = 112
 $g.DrawString("[", $fMono, $inkBrush, $x0, $y0 - 4)
 $g.FillEllipse($inkBrush, $x0 + 62, $y0 + 44, 42, 42)
 $g.DrawString("]", $fMono, $inkBrush, $x0 + 120, $y0 - 4)
-$g.DrawString("BALLPARK", $fBig, $inkBrush, $x0 + $markW, $y0)
+$g.DrawString("HALFSURE", $fBig, $inkBrush, $x0 + $markW, $y0)
 
 # tagline, centered
 $fTag = New-Object System.Drawing.Font("Segoe UI", 30, [System.Drawing.FontStyle]::Regular)

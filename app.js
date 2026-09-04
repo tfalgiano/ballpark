@@ -1,5 +1,5 @@
 /* ============================================================
-   BALLPARK — game engine
+   HALFSURE — game engine
    Fully client-side. State lives in localStorage. Daily puzzle
    is picked deterministically from the local date.
    ============================================================ */
@@ -554,7 +554,7 @@
           '<div class="verdict-fact">' + esc(q.reveal) + "</div>" +
           '<div class="verdict-src">' + esc(q.source) + (q.asOf ? " · as of " + esc(q.asOf) : "") +
           ' · <a class="dispute" href="mailto:tfalgiano@gmail.com?subject=' +
-          encodeURIComponent("Ballpark answer dispute") + "&body=" +
+          encodeURIComponent("Halfsure answer dispute") + "&body=" +
           encodeURIComponent("Question: " + q.prompt + "\nShown answer: " + q.answer + " " + q.unit +
             "\nSource: " + q.source + "\n\nMy case: ") + '">dispute</a></div>');
         card.setAttribute("role", "status");
@@ -584,7 +584,7 @@
 
   function startDaily() {
     var n = dayNumber();
-    if (n < 0) { stage.innerHTML = ""; stage.appendChild(el("div", "summary", "<p>Ballpark opens on " + esc(DATA.epoch) + ". See you then.</p>")); return; }
+    if (n < 0) { stage.innerHTML = ""; stage.appendChild(el("div", "summary", "<p>Halfsure opens on " + esc(DATA.epoch) + ". See you then.</p>")); return; }
     var rec = state.history[n] || (state.history[n] = { answers: [], done: false });
     /* Partitions the top of the funnel. A pageview is not an opportunity to
        play: a player who already finished today lands straight on their summary
@@ -646,7 +646,7 @@
       startIndex: rec.answers.length,
       answers: rec.answers,
       banner: targetScore != null
-        ? "⚔️ Challenge: beat " + targetScore + "/500 on this ballpark"
+        ? "⚔️ Challenge: beat " + targetScore + "/500 on this puzzle"
         : "Archive #" + (dayIdx + 1) + " — doesn't touch your streak",
       onAnswer: function (idx, a) { rec.answers[idx] = a; saveState(); },
       onDone: function (answers) {
@@ -663,7 +663,7 @@
     var rec = state.archive[dayIdx];
     var hits = rec.answers.filter(function (a) { return a.hit; }).length;
     var screen = el("div", "screen summary");
-    screen.appendChild(el("div", "summary-kicker", "Ballpark #" + (dayIdx + 1) + " · archive"));
+    screen.appendChild(el("div", "summary-kicker", "Halfsure #" + (dayIdx + 1) + " · archive"));
     screen.appendChild(el("div", "summary-score", rec.score + "<span class='of'>/500</span>"));
     screen.appendChild(el("div", "summary-grid", rec.answers.map(emojiFor).join("")));
     screen.appendChild(el("div", "summary-label", hits + " of " + rec.answers.length + " trapped"));
@@ -676,11 +676,11 @@
     }
     var actions = el("div", "action-row");
     var shareBtn = el("button", "btn btn-primary", "Challenge a friend");
-    var todayBtn = el("button", "btn", "Play today's ballpark");
+    var todayBtn = el("button", "btn", "Play today's puzzle");
     actions.appendChild(shareBtn); actions.appendChild(todayBtn);
     screen.appendChild(actions);
     shareBtn.addEventListener("click", function () {
-      shareResult("Ballpark #" + (dayIdx + 1) + " — " + rec.score + "/500\n" +
+      shareResult("Halfsure #" + (dayIdx + 1) + " — " + rec.score + "/500\n" +
         rec.answers.map(emojiFor).join(""), challengeUrl(dayIdx, rec.score));
     });
     todayBtn.addEventListener("click", function () {
@@ -698,7 +698,7 @@
   function openArchive() {
     openModal(function (m) {
       m.appendChild(el("h2", "", "The archive"));
-      m.appendChild(el("div", "modal-sub", "Every past ballpark. Archive plays don't touch your streak."));
+      m.appendChild(el("div", "modal-sub", "Every past puzzle. Archive plays don't touch your streak."));
       var grid = el("div", "archive-grid");
       var today = dayNumber();
       for (var d = today - 1; d >= 0; d--) {
@@ -725,7 +725,7 @@
     var grid = rec.answers.map(emojiFor).join("");
     var hits = rec.answers.filter(function (a) { return a.hit; }).length;
     var streak = currentStreak();
-    return "Ballpark #" + (n + 1) + " — " + rec.score + "/500" + (hits === rec.answers.length ? " 🎯" : "") +
+    return "Halfsure #" + (n + 1) + " — " + rec.score + "/500" + (hits === rec.answers.length ? " 🎯" : "") +
       "\n" + grid + (streak > 1 ? "  🔥" + streak : "");
   }
   // one share path for daily and archive: native sheet on touch, clipboard on desktop
@@ -740,7 +740,7 @@
       }, function () { toast("Couldn't copy — check clipboard permission"); });
     }
     if (coarse && navigator.share) {
-      navigator.share({ title: "Ballpark", text: gridText + "\nBeat me:", url: url })
+      navigator.share({ title: "Halfsure", text: gridText + "\nBeat me:", url: url })
         .then(function () { track("event/share-native"); })
         .catch(copyFallback);
     } else {
@@ -772,12 +772,13 @@
       setTimeout(function () { burst.remove(); }, 3200);
     }
 
-    screen.appendChild(el("div", "summary-kicker", "Ballpark #" + (n + 1) + " · final"));
+    screen.appendChild(el("div", "summary-kicker", "Halfsure #" + (n + 1) + " · final"));
     var scoreEl = el("div", "summary-score", "0<span class='of'>/500</span>");
     screen.appendChild(scoreEl);
     screen.appendChild(el("div", "summary-grid", rec.answers.map(emojiFor).join("")));
     screen.appendChild(el("div", "summary-label",
-      hits + " of " + rec.answers.length + " trapped" + (hits === rec.answers.length ? " — perfect ballpark 🎯" : "")));
+      hits + " of " + rec.answers.length + " trapped" +
+      (rec.answers.length && hits === rec.answers.length ? " — perfect round 🎯" : "")));
 
     var priorBest = 0, priorDays = 0;
     Object.keys(state.history).forEach(function (k) {
@@ -827,17 +828,6 @@
     screen.appendChild(actions);
     archiveBtn.addEventListener("click", openArchive);
 
-    // launch-day only: point our own players at the Product Hunt page (auto-expires)
-    var today = new Date();
-    if (today.getFullYear() === 2026 && today.getMonth() === 7 && today.getDate() === 11) {
-      var ph = el("a", "ph-banner", "🚀 Ballpark is live on Product Hunt today — support the launch →");
-      ph.href = "https://www.producthunt.com/products/ballpark-the-daily-estimation-game?utm_source=ballpark&utm_medium=web";
-      ph.target = "_blank";
-      ph.rel = "noopener";
-      ph.addEventListener("click", function () { track("event/ph-click"); });
-      screen.appendChild(ph);
-    }
-
     var cd = el("div", "countdown");
     screen.appendChild(cd);
     function tickCd() {
@@ -845,7 +835,7 @@
       if (dayNumber() !== n) {
         clearInterval(renderSummary._cd);
         cd.innerHTML = "";
-        var playNew = el("button", "btn btn-primary", "New ballpark is ready — play #" + (dayNumber() + 1));
+        var playNew = el("button", "btn btn-primary", "New puzzle is ready — play #" + (dayNumber() + 1));
         playNew.addEventListener("click", startDaily);
         cd.appendChild(playNew);
         return;
@@ -854,7 +844,7 @@
       var mid = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1);
       var s = Math.floor((mid - now) / 1000);
       var h = Math.floor(s / 3600), m = Math.floor((s % 3600) / 60), ss = s % 60;
-      cd.innerHTML = "Next ballpark in <b>" + h + "h " + (m < 10 ? "0" : "") + m + "m " + (ss < 10 ? "0" : "") + ss + "s</b>";
+      cd.innerHTML = "Next puzzle in <b>" + h + "h " + (m < 10 ? "0" : "") + m + "m " + (ss < 10 ? "0" : "") + ss + "s</b>";
     }
     tickCd();
     clearInterval(renderSummary._cd);
@@ -1000,7 +990,7 @@
         step.appendChild(el("p", "", s[1]));
         m.appendChild(step);
       });
-      var b = el("button", "btn btn-primary", firstRun ? "Play today's ballpark" : "Got it");
+      var b = el("button", "btn btn-primary", firstRun ? "Play today's puzzle" : "Got it");
       b.style.width = "100%"; b.style.marginTop = "8px";
       b.addEventListener("click", function () {
         state.seenTutorial = true; saveState(); closeModal();
@@ -1053,7 +1043,7 @@
       // score histogram
       var hist = el("div", "chart-block");
       hist.appendChild(el("div", "chart-title", "Daily scores"));
-      hist.appendChild(el("div", "chart-sub", played ? "Distribution of your finals. Ink bar is today." : "Play your first ballpark to start the record."));
+      hist.appendChild(el("div", "chart-sub", played ? "Distribution of your finals. Ink bar is today." : "Play your first puzzle to start the record."));
       var buckets = [0, 0, 0, 0, 0];
       var todayBucket = -1;
       var todayN = dayNumber();
@@ -1179,6 +1169,8 @@
     // must run before the ?code= branch below rewrites the URL, or a first-time
     // visitor's acquisition source is erased before it is ever recorded
     initPlayer();
+    // dates the rebrand in the analytics without touching player identity
+    once("uniq/brand-halfsure");
     // partitions every app load, so the start-rate denominator no longer mixes
     // installed-app re-opens with genuine browser arrivals
     track(isStandalone() ? "evt/launch/standalone" : "evt/launch/browser");
@@ -1197,7 +1189,7 @@
         history.replaceState(null, "", location.pathname + (rest ? "?" + rest : ""));
         // everything a code used to unlock is free now, so thank them rather
         // than announce an unlock they already had
-        setTimeout(function () { toast("Thanks for backing Ballpark ⚡"); }, 600);
+        setTimeout(function () { toast("Thanks for backing Halfsure ⚡"); }, 600);
       }
     } catch (e) {}
 

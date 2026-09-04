@@ -1,6 +1,6 @@
 {
-  "name": "Ballpark — the daily estimation game",
-  "short_name": "Ballpark",
+  "name": "Halfsure — the daily estimation game",
+  "short_name": "Halfsure",
   "description": "Five questions a day. Don't guess the number — trap it.",
   "start_url": "./?src=pwa",
   "display": "standalone",
