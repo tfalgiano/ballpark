@@ -103,8 +103,6 @@ multi-tenancy, no billing.
 
 ---
 
----
-
 ## Further content generation — PARKED
 
 174 scheduled days through **16 January 2027**, 135 of them unplayed. The
@@ -122,6 +120,8 @@ architecture is worth testing on a deliberately small batch. The runway alarm in
 
 **Not a reason to reopen:** having an idea for better questions, or the category
 looking crowded. Neither is a content shortage.
+
+---
 
 ## Also parked, without further investigation
 
