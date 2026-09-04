@@ -163,6 +163,42 @@ cohort AND the Tenaz/Tanaza/Tenzi search occupation clears. Both, not either.
 
 ---
 
+## Buying halfsure.com at $3,995 — DECLINED, with revisit conditions
+
+Declined 2026-09-04. Recorded so the listing existing does not become a
+recurring debate every time someone notices it.
+
+**The decision was not** between owning the .com and a competitor owning it. The
+brand query is vacant: no game, no app, no company, no repo anywhere on the
+string. It was between ~$4,000 for a shorter URL and ~$11/yr for a clean
+game-domain pattern. At this stage that is not worth $4,000.
+
+Canonical is `playhalfsure.com`, with `halfsure.app` alongside. The game has
+never owned `ballpark.com` either, and the exact .com was never the constraint —
+three live rivals holding the same word was.
+
+**The known cost, accepted consciously:** anyone who hears the name and types
+`halfsure.com` lands on a GoDaddy sale page. That leak is real and permanent
+until bought.
+
+**Revisit if any of these becomes true:**
+
+1. Direct/typed navigation becomes **measurable** and material — not assumed.
+   Until there is a number, the leak is a guess.
+2. Revenue makes ~$4,000 trivial rather than significant.
+3. The seller materially drops the price, or the listing changes hands.
+4. We begin investing materially in the brand — paid acquisition, an app-store
+   listing, press outreach — where a split canonical string starts costing more
+   than it saves.
+
+**Not a reason to revisit:** noticing the listing again, or a marketing email
+from the marketplace. Note the asymmetry honestly though — the price is likelier
+to rise than fall once a live product sits on the name, because a dormant 2018
+domain suddenly showing daily type-ins is the clearest buy-signal in domaining.
+That is the cost of waiting, and it is accepted.
+
+---
+
 ## Also parked, without further investigation
 
 Ads · subscriptions · accounts and login · native apps · leaderboards ·
