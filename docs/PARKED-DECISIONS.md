@@ -103,6 +103,26 @@ multi-tenancy, no billing.
 
 ---
 
+---
+
+## Further content generation — PARKED
+
+174 scheduled days through **16 January 2027**, 135 of them unplayed. The
+September cliff is two re-plannings behind us and the emergency is over.
+
+Batch 2 cost 5.48M tokens at 19,796 per accepted question, against 7,853 in
+batch 1. The quality improvements are real and are all kept — see
+`docs/CONTENT-PIPELINE.md` — but the exact 99-agent shape is not proven to be the
+permanent content factory, and running it again today would spend five million
+tokens to solve a problem we no longer have.
+
+**Reopen when:** the runway drops toward roughly 60 unplayed days, or a cheaper
+architecture is worth testing on a deliberately small batch. The runway alarm in
+`tests/test.js` fails at 21 days remaining — that is the backstop, not the plan.
+
+**Not a reason to reopen:** having an idea for better questions, or the category
+looking crowded. Neither is a content shortage.
+
 ## Also parked, without further investigation
 
 Ads · subscriptions · accounts and login · native apps · leaderboards ·
