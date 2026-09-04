@@ -146,8 +146,22 @@ instead of a month.
 ## Privacy
 
 The player id is generated on-device, stored in the player's own browser, and
-**never transmitted** — it exists so distinct-day and streak maths survive a
-reload. No cookies, no fingerprinting, no cross-site identifiers, no referrer
-URLs or query strings in any event. What leaves the browser is a bucketed
-counter and nothing else. Cohorts are week-wide and sources are coarse buckets,
-so no event can single out an individual.
+**never sent to us** — it appears in no analytics event, ever. It exists so
+distinct-day and streak maths survive a reload. No cookies, no fingerprinting,
+no cross-site identifiers, no referrer URLs or query strings in any event. What
+leaves the browser is a bucketed counter and nothing else. Cohorts are week-wide
+and sources are coarse buckets, so no event can single out an individual.
+
+**One deliberate exception, documented before it exists.** A domain migration
+(see `RENAME-MIGRATION.md`) would carry this state — including the player id —
+through a **URL fragment in the player's own browser**, so their streak survives
+the move. Fragments are not sent to servers, so the id still never reaches us or
+anyone else's server. But such a URL is visible in the address bar, can be
+copied, and may be captured by browser history sync.
+
+So the accurate claim is **"never transmitted to us"**, not *"never leaves the
+device"*. The earlier wording was the stronger claim and it was wrong. The
+mitigation is that the fragment is stripped with `history.replaceState`
+immediately after import, so it does not linger in a shareable URL — but a
+correct description of a privacy property is worth more than a flattering one,
+and this file should not be the place someone learns otherwise.

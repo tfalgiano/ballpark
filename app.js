@@ -144,9 +144,16 @@
        evt/...   something happened. Repeats. Never a number of people.
        uniq/...  fires once per browser for all time. The count IS people.
 
-     The id never leaves the device — it exists so distinct-day and streak maths
-     survive a page reload, not to be transmitted. No fingerprinting, no cookies,
-     nothing that identifies a person: what ships is a bucketed counter. */
+     The id is never sent to our server and never appears in an analytics event —
+     it exists so distinct-day and streak maths survive a page reload. What ships
+     to GoatCounter is a bucketed counter and nothing else. No fingerprinting, no
+     cookies, nothing that identifies a person.
+
+     One honest exception, for when it exists: a future domain migration would
+     place this state in a URL fragment in the player's OWN browser so their
+     streak survives the move. Fragments are not sent to servers, but such a URL
+     is visible in the address bar and can be copied, so that is "not transmitted
+     to us", not "never leaves the machine". Do not write the stronger claim. */
   /* Display-mode is the reliable signal, not the URL. start_url carries
      "?src=pwa" so GoatCounter can separate the paths, but that parameter is
      lost the moment the app navigates or rewrites history, and it is absent

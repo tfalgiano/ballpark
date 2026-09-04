@@ -76,7 +76,13 @@ The bridge is the only genuinely new code, and it is small:
   if** the local state is empty or strictly poorer (fewer completed days), then
   immediately `history.replaceState`s the fragment away.
 - A URL **fragment** is used deliberately: fragments are never sent to a server,
-  so a player's history never leaves their machine even in transit.
+  so the payload reaches neither us nor the new host's logs.
+
+  **State that precisely.** "Never sent to a server" is true. *"Never leaves the
+  machine"* is not — the URL is visible in the address bar, can be copied or
+  screenshotted, and may be captured by browser history sync. The fragment is
+  stripped with `history.replaceState` immediately on import to keep that window
+  as short as possible, but the honest description is the narrower one.
 
 **The payload must include `player.milestones`.** If it does not, every migrated
 player re-fires `uniq/player-first-finish` and the retention series breaks — the
@@ -164,7 +170,62 @@ by running the build twice.
 Everything above this line was the shape of the plan. This is the part that has
 to be testable before it is written.
 
-## The payload, sized against the real state
+## Smallest sufficient payload — measured, not assumed
+
+Component-by-component, at three horizons:
+
+| Component | 39 days | 174 days | 365 days | Needed for continuity? |
+|---|---:|---:|---:|---|
+| identity + cohort + source | 77 B | 77 B | 77 B | **Yes** |
+| milestones (`uniq/` prefix stripped) | 272 B | 272 B | 272 B | **Yes** |
+| per-day scores **as an array** | 157 B | 697 B | 1,461 B | **Yes** |
+| per-day scores as a map | 342 B | 1,631 B | 3,541 B | — the array is 59% smaller |
+| archive | 44 B | 44 B | 44 B | No |
+| `practice.seen` | 354 B | 354 B | 354 B | No |
+| **per-answer detail** | 14.4 KB | 64.8 KB | **135.8 KB** | **No** |
+| **minimal core** | **535 B** | **1,076 B** | **1,840 B** | — |
+| whole storage object | 15.8 KB | 67.4 KB | 140.4 KB | — |
+
+**The per-answer detail is 97% of the payload and none of it is required for
+continuity.** The core — identity, cohort, source, milestones, maxStreak and a
+per-day score array — is **1.8 KB at a full year**, or 1.3% of the object. It
+fits any URL at any horizon, forever.
+
+Two free wins fell out of measuring: storing scores as an **array indexed by day**
+rather than a map halves the cost at scale, and stripping the shared `uniq/`
+prefix from milestone keys saves another 75 B.
+
+### But the detail cannot simply be dropped
+
+`renderSummary()` computes `hits` and the emoji grid directly from
+`rec.answers`. With an empty array a migrated day renders as an empty grid and —
+because `hits === rec.answers.length` is `0 === 0` — the label
+**"0 of 0 trapped — perfect ballpark 🎯"**. That is not degraded, it is wrong.
+
+*(This is a latent bug today: the confetti line guards with
+`&& rec.answers.length`, the label line does not. It is currently unreachable
+because a `done` day always has five answers. Migration would make it reachable,
+so the guard must be added regardless.)*
+
+So the payload carries a third, tiny tier:
+
+```
+core       identity, cohort, source, milestones, maxStreak,
+           per-day score array                        1.8 KB @ 365 days
+outcomes   per-day 5-char result code, e.g. "GYRGY"   ~2.9 KB @ 365 days
+detail     full per-answer rows, MOST RECENT days
+           first, only while the total stays <32 KB   ~372 B per day
+```
+
+`outcomes` restores the grid and the hit count for every day ever played, at
+trivial cost. `detail` is carried **most-recent-first**, because the days anyone
+revisits are the recent ones — about 80 days of full detail fits the budget, and
+older days keep score, grid and hit count while losing only the per-question
+recap rows.
+
+**Floor: ~4.7 KB at a full year. It never fails on size, at any horizon.**
+
+## The original sizing, for reference
 
 Measured with the actual `defaultState()` shape and real question ids:
 
